@@ -1,0 +1,23 @@
+# Local Claude Code config
+.claude/
+
+# Sample wallpaper (users supply their own)
+wallpaperflare.com_wallpaper.jpg
+*.jpg
+*.jpeg
+
+# Keep icon PNGs
+!icons/*.png
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Build artifacts
+*.zip
+node_modules/

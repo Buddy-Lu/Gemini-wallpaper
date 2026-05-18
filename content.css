@@ -1,0 +1,56 @@
+/* 
+ * Gemini Wallpaper - Content Styles
+ * These get injected directly into gemini.google.com
+ *
+ * Gemini's background is controlled by several layered elements.
+ * We target the broadest selectors possible since class names are 
+ * obfuscated and can change between deployments.
+ */
+
+/* The wallpaper layer - injected by content.js */
+#gemini-wallpaper-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: opacity 0.4s ease;
+}
+
+/* Remove Gemini's built-in fade-to-dark gradient above the input box —
+   it was invisible before but shows as an ugly band over a wallpaper */
+input-container::before {
+  background-image: none !important;
+}
+
+/* Glass surfaces — backdrop blur is fixed; color/opacity injected dynamically by content.js */
+bard-sidenav,
+input-area-v2,
+.user-query-bubble-with-background {
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  transition: background-color 0.3s ease !important;
+}
+
+.blur-bg,
+.autosuggest-scrim {
+  background-color: transparent !important;
+}
+
+/* Dim overlay on top of wallpaper for readability */
+#gemini-wallpaper-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.5);
+  transition: background 0.4s ease;
+}

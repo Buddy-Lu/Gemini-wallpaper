@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 320px;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      padding: 16px;
+    }
+
+    h1 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #fff;
+    }
+
+    h1 .icon {
+      font-size: 18px;
+    }
+
+    /* Toggle row */
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      padding: 8px 0;
+      border-bottom: 1px solid #2a2a4a;
+    }
+
+    .toggle-row label {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    /* Toggle switch */
+    .switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+    }
+
+    .switch input { display: none; }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: #3a3a5a;
+      border-radius: 22px;
+      cursor: pointer;
+      transition: background 0.25s;
+    }
+
+    .slider::before {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 3px;
+      bottom: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.25s;
+    }
+
+    .switch input:checked + .slider {
+      background: #4a7cff;
+    }
+
+    .switch input:checked + .slider::before {
+      transform: translateX(18px);
+    }
+
+    /* Upload area */
+    .upload-area {
+      border: 2px dashed #3a3a5a;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 14px;
+    }
+
+    .upload-area:hover {
+      border-color: #4a7cff;
+      background: rgba(74, 124, 255, 0.05);
+    }
+
+    .upload-area.has-image {
+      padding: 0;
+      overflow: hidden;
+      border-style: solid;
+    }
+
+    .upload-area img {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .upload-area .placeholder {
+      color: #888;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .upload-area .placeholder strong {
+      display: block;
+      color: #bbb;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    .upload-area.drag-over {
+      border-color: #4a7cff;
+      background: rgba(74, 124, 255, 0.1);
+    }
+
+    /* Font picker */
+    .font-options {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .font-btn {
+      flex: none;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 500;
+      background: #2a2a4a;
+      color: #aaa;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .font-btn:hover { color: #fff; }
+
+    .font-btn.selected {
+      border-color: #4a7cff;
+      color: #4a7cff;
+      background: rgba(74, 124, 255, 0.12);
+    }
+
+    /* Sliders */
+    .control-group {
+      margin-bottom: 12px;
+    }
+
+    .control-group label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #aaa;
+      margin-bottom: 6px;
+    }
+
+    .control-group label span {
+      color: #4a7cff;
+      font-weight: 600;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      background: #2a2a4a;
+      border-radius: 2px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #4a7cff;
+      cursor: pointer;
+      border: 2px solid #1a1a2e;
+    }
+
+    /* Buttons */
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    button {
+      flex: 1;
+      padding: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    button:hover { opacity: 0.85; }
+
+    .btn-primary {
+      background: #4a7cff;
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: #2a2a4a;
+      color: #ccc;
+    }
+
+    /* Status */
+    .status {
+      text-align: center;
+      font-size: 11px;
+      color: #4a7cff;
+      margin-top: 8px;
+      min-height: 16px;
+      transition: opacity 0.3s;
+    }
+
+    input[type="file"] { display: none; }
+  </style>
+</head>
+<body>
+  <h1><span class="icon">🖼️</span> Gemini Wallpaper</h1>
+
+  <!-- Enable toggle -->
+  <div class="toggle-row">
+    <label for="enableToggle">Enable Wallpaper</label>
+    <label class="switch">
+      <input type="checkbox" id="enableToggle" checked />
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <!-- Pet toggle -->
+  <div class="toggle-row">
+    <label for="petToggle">Pet</label>
+    <label class="switch">
+      <input type="checkbox" id="petToggle" />
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <!-- Pet type picker -->
+  <div class="control-group">
+    <label>Pet Type <span id="petTypeVal" style="color:#4a7cff;font-weight:600;">Duck</span></label>
+    <div class="font-options">
+      <button class="font-btn selected" data-pet="duck">🦆 Duck</button>
+      <button class="font-btn" data-pet="dog">🐶 Dog</button>
+      <button class="font-btn" data-pet="fox">🦊 Fox</button>
+    </div>
+  </div>
+
+  <!-- Image upload -->
+  <div class="upload-area" id="uploadArea">
+    <div class="placeholder" id="uploadPlaceholder">
+      <strong>Drag image here</strong>
+      or Ctrl+V to paste from clipboard
+    </div>
+    <img id="previewImg" style="display:none" />
+  </div>
+
+  <!-- Latin font picker -->
+  <div class="control-group">
+    <label>Latin Font <span id="fontVal" style="color:#4a7cff;font-weight:600;">Default</span></label>
+    <div class="font-options">
+      <button class="font-btn selected" data-font="" data-group="latin">Default</button>
+      <button class="font-btn" data-font="Inter" data-group="latin">Inter</button>
+      <button class="font-btn" data-font="Merriweather" data-group="latin">Merriweather</button>
+      <button class="font-btn" data-font="JetBrains Mono" data-group="latin">JB Mono</button>
+      <button class="font-btn" data-font="Nunito" data-group="latin">Nunito</button>
+    </div>
+  </div>
+
+  <!-- Chinese font picker -->
+  <div class="control-group">
+    <label>中文字體 <span id="cjkFontVal" style="color:#4a7cff;font-weight:600;">預設</span></label>
+    <div class="font-options">
+      <button class="font-btn selected" data-font="" data-group="cjk">預設</button>
+      <button class="font-btn" data-font="Noto Serif TC" data-group="cjk">思源宋</button>
+      <button class="font-btn" data-font="Noto Sans TC" data-group="cjk">思源黑</button>
+      <button class="font-btn" data-font="LXGW WenKai TC" data-group="cjk">文楷</button>
+      <button class="font-btn" data-font="Zen Old Mincho" data-group="cjk">明朝</button>
+      <button class="font-btn" data-font="Zen Maru Gothic" data-group="cjk">圓黑</button>
+    </div>
+  </div>
+
+  <!-- Glass tint -->
+  <div class="control-group">
+    <label>
+      Glass Tint
+      <span style="display:flex;align-items:center;gap:6px;">
+        <input type="color" id="glassColor" value="#000000"
+          style="width:22px;height:18px;border:none;border-radius:3px;cursor:pointer;padding:0;background:none;" />
+        <span id="glassOpacityVal" style="color:#4a7cff;font-weight:600;">45%</span>
+      </span>
+    </label>
+    <input type="range" id="glassOpacity" min="0" max="100" value="45" />
+  </div>
+
+  <!-- Overlay opacity -->
+  <div class="control-group">
+    <label>
+      Dim Overlay
+      <span id="overlayVal">50%</span>
+    </label>
+    <input type="range" id="overlaySlider" min="0" max="100" value="50" />
+  </div>
+
+  <!-- Blur -->
+  <div class="control-group">
+    <label>
+      Background Blur
+      <span id="blurVal">0px</span>
+    </label>
+    <input type="range" id="blurSlider" min="0" max="20" value="0" />
+  </div>
+
+  <!-- Brightness -->
+  <div class="control-group">
+    <label>
+      Brightness
+      <span id="brightnessVal">100%</span>
+    </label>
+    <input type="range" id="brightnessSlider" min="20" max="150" value="100" />
+  </div>
+
+  <!-- Actions -->
+  <div class="btn-row">
+    <button class="btn-secondary" id="resetBtn">Reset</button>
+    <button class="btn-primary" id="saveBtn">Apply</button>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
