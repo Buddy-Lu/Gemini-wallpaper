@@ -47,6 +47,7 @@ const cjkFontVal      = $("#cjkFontVal");
 const glassColorEl    = $("#glassColor");
 const glassOpacityEl  = $("#glassOpacity");
 const glassOpacityVal = $("#glassOpacityVal");
+const autoThemeBtn    = $("#autoThemeBtn");
 
 let currentImageData = "";
 
@@ -320,6 +321,64 @@ glassOpacityEl.addEventListener("input", () => {
 
 glassColorEl.addEventListener("input", () => {
   chrome.storage.local.set({ glassColor: glassColorEl.value });
+});
+
+// ── Auto theme color from wallpaper ─────────────────────────
+// Samples the loaded image and picks its dominant color, weighting toward
+// saturated pixels and away from near-black/near-white so the tint reflects
+// the image's actual mood instead of a muddy average.
+function dominantColor(img) {
+  const MAX = 64; // downscale — plenty for a color estimate, keeps it fast
+  const scale = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.max(1, Math.round(img.naturalWidth * scale));
+  const h = Math.max(1, Math.round(img.naturalHeight * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, w, h);
+  const { data } = ctx.getImageData(0, 0, w, h);
+
+  // Bucket colors at 4 bits/channel; accumulate a weighted average per bucket.
+  const buckets = new Map();
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+    if (a < 125) continue; // ignore transparent pixels
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const sat = max === 0 ? 0 : (max - min) / max;
+    const lum = (max + min) / 2;
+    let weight = 1 + sat * 3;                 // favor colorful pixels
+    if (lum < 18 || lum > 240) weight *= 0.15; // demote near-black / near-white
+    const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+    let e = buckets.get(key);
+    if (!e) { e = { r: 0, g: 0, b: 0, w: 0 }; buckets.set(key, e); }
+    e.r += r * weight; e.g += g * weight; e.b += b * weight; e.w += weight;
+  }
+
+  let best = null;
+  for (const e of buckets.values()) if (!best || e.w > best.w) best = e;
+  if (!best) return null;
+
+  const to = (n) => Math.round(n).toString(16).padStart(2, "0");
+  return "#" + to(best.r / best.w) + to(best.g / best.w) + to(best.b / best.w);
+}
+
+autoThemeBtn.addEventListener("click", () => {
+  if (!currentImageData) {
+    showStatus("Load an image first.");
+    return;
+  }
+  const img = new Image();
+  img.onload = () => {
+    const hex = dominantColor(img);
+    if (!hex) { showStatus("Could not read image colors."); return; }
+    glassColorEl.value = hex;
+    chrome.storage.local.set({ glassColor: hex });
+    showStatus("Theme color set from image.");
+  };
+  img.onerror = () => showStatus("Could not read image.");
+  img.src = currentImageData;
 });
 
 // ── Font picker ─────────────────────────────────────────────

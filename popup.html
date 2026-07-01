@@ -3,6 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <style>
+    /* ── Mechanical / gunmetal control panel theme ───────────────
+       Brushed-steel surfaces, beveled panel edges, knurled machined
+       controls, engraved monospace labels, amber indicator accent. */
+    :root {
+      --steel-0: #16181c;   /* deep shadow / groove */
+      --steel-1: #1d2024;   /* recessed */
+      --steel-2: #23262b;   /* base surface */
+      --steel-3: #2c3037;   /* raised surface */
+      --edge-hi: #40464f;   /* top bevel highlight */
+      --edge-lo: #101215;   /* bottom bevel shadow */
+      --txt:     #c6ccd4;   /* engraved steel text */
+      --txt-dim: #868d97;
+      --amber:   #f0a830;   /* indicator / active */
+      --amber-d: #b97c17;
+    }
+
     * {
       margin: 0;
       padding: 0;
@@ -11,24 +27,43 @@
 
     body {
       width: 320px;
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      background: #1a1a2e;
-      color: #e0e0e0;
-      padding: 16px;
+      font-family: 'Consolas', 'SFMono-Regular', ui-monospace, 'JetBrains Mono', monospace;
+      color: var(--txt);
+      padding: 14px;
+      background-color: #202327;
+      /* brushed-metal grain */
+      background-image:
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.014) 0 1px, transparent 1px 3px),
+        linear-gradient(180deg, #24272c, #1b1e22);
     }
 
+    /* Nameplate header */
     h1 {
-      font-size: 15px;
-      font-weight: 600;
-      margin-bottom: 14px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2.5px;
+      color: #e8ecf1;
+      margin-bottom: 16px;
+      padding: 9px 11px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      color: #fff;
+      gap: 9px;
+      background: linear-gradient(180deg, var(--steel-3), var(--steel-2));
+      border: 1px solid var(--edge-lo);
+      border-top-color: var(--edge-hi);
+      border-radius: 3px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 1px 2px rgba(0,0,0,0.55);
     }
 
-    h1 .icon {
-      font-size: 18px;
+    /* status LED (not an icon font — pure CSS) */
+    h1 .led {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #ffd27a, var(--amber) 60%, var(--amber-d));
+      box-shadow: 0 0 5px rgba(240,168,48,0.8), inset 0 0 1px rgba(0,0,0,0.4);
+      flex: none;
     }
 
     /* Toggle row */
@@ -36,20 +71,24 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 14px;
-      padding: 8px 0;
-      border-bottom: 1px solid #2a2a4a;
+      margin-bottom: 12px;
+      padding: 7px 2px;
+      border-bottom: 1px solid var(--steel-0);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.03);
     }
 
     .toggle-row label {
-      font-size: 13px;
-      font-weight: 500;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--txt);
     }
 
-    /* Toggle switch */
+    /* Mechanical rocker switch */
     .switch {
       position: relative;
-      width: 40px;
+      width: 44px;
       height: 22px;
     }
 
@@ -58,52 +97,63 @@
     .slider {
       position: absolute;
       inset: 0;
-      background: #3a3a5a;
-      border-radius: 22px;
+      background: linear-gradient(180deg, var(--steel-0), var(--steel-1));
+      border: 1px solid var(--edge-lo);
+      border-radius: 3px;
       cursor: pointer;
-      transition: background 0.25s;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.65);
+      transition: background 0.2s, border-color 0.2s;
     }
 
     .slider::before {
       content: '';
       position: absolute;
-      width: 16px;
-      height: 16px;
-      left: 3px;
-      bottom: 3px;
-      background: #fff;
-      border-radius: 50%;
-      transition: transform 0.25s;
+      width: 18px;
+      height: 18px;
+      left: 1px;
+      top: 1px;
+      background:
+        repeating-linear-gradient(90deg, rgba(0,0,0,0.28) 0 1px, transparent 1px 3px),
+        linear-gradient(180deg, #4c525c, #2b3037);
+      border: 1px solid var(--edge-lo);
+      border-radius: 2px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 1px 2px rgba(0,0,0,0.55);
+      transition: transform 0.2s;
     }
 
     .switch input:checked + .slider {
-      background: #4a7cff;
+      background: linear-gradient(180deg, #6d4a12, #8a5f14);
+      border-color: var(--amber-d);
     }
 
     .switch input:checked + .slider::before {
-      transform: translateX(18px);
+      transform: translateX(22px);
+      background:
+        repeating-linear-gradient(90deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px),
+        linear-gradient(180deg, #ffc25a, #dd9421);
     }
 
-    /* Upload area */
+    /* Upload bay */
     .upload-area {
-      border: 2px dashed #3a3a5a;
-      border-radius: 8px;
+      border: 1px solid var(--edge-lo);
+      border-top-color: var(--edge-hi);
+      border-radius: 3px;
       padding: 16px;
       text-align: center;
       cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
+      background: linear-gradient(180deg, var(--steel-2), var(--steel-1));
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.45);
+      transition: border-color 0.2s, box-shadow 0.2s;
       margin-bottom: 14px;
     }
 
     .upload-area:hover {
-      border-color: #4a7cff;
-      background: rgba(74, 124, 255, 0.05);
+      border-color: var(--amber-d);
     }
 
     .upload-area.has-image {
       padding: 0;
       overflow: hidden;
-      border-style: solid;
     }
 
     .upload-area img {
@@ -114,24 +164,27 @@
     }
 
     .upload-area .placeholder {
-      color: #888;
-      font-size: 12px;
-      line-height: 1.5;
+      color: var(--txt-dim);
+      font-size: 11px;
+      line-height: 1.6;
+      letter-spacing: 0.3px;
     }
 
     .upload-area .placeholder strong {
       display: block;
-      color: #bbb;
-      font-size: 13px;
+      color: var(--txt);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
       margin-bottom: 4px;
     }
 
     .upload-area.drag-over {
-      border-color: #4a7cff;
-      background: rgba(74, 124, 255, 0.1);
+      border-color: var(--amber);
+      box-shadow: inset 0 0 12px rgba(240,168,48,0.15);
     }
 
-    /* Font picker */
+    /* Machined key buttons (pet / quality / fonts) */
     .font-options {
       display: flex;
       gap: 5px;
@@ -141,26 +194,33 @@
 
     .font-btn {
       flex: none;
-      padding: 4px 10px;
-      font-size: 11px;
-      font-weight: 500;
-      background: #2a2a4a;
-      color: #aaa;
-      border: 1px solid transparent;
-      border-radius: 4px;
+      padding: 5px 9px;
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--txt-dim);
+      background: linear-gradient(180deg, var(--steel-3), var(--steel-2));
+      border: 1px solid var(--edge-lo);
+      border-top-color: var(--edge-hi);
+      border-radius: 2px;
       cursor: pointer;
-      transition: all 0.15s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+      transition: color 0.15s, border-color 0.15s, box-shadow 0.15s;
     }
 
-    .font-btn:hover { color: #fff; }
+    .font-btn:hover { color: #e8ecf1; }
+    .font-btn:active { transform: translateY(1px); }
 
     .font-btn.selected {
-      border-color: #4a7cff;
-      color: #4a7cff;
-      background: rgba(74, 124, 255, 0.12);
+      color: var(--amber);
+      border-color: var(--amber-d);
+      background: linear-gradient(180deg, #33291a, #2a2317);
+      box-shadow: inset 0 0 0 1px rgba(240,168,48,0.25), 0 0 6px rgba(240,168,48,0.12);
     }
 
-    /* Sliders */
+    /* Gauges / sliders */
     .control-group {
       margin-bottom: 12px;
     }
@@ -168,71 +228,88 @@
     .control-group label {
       display: flex;
       justify-content: space-between;
-      font-size: 12px;
-      color: #aaa;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--txt-dim);
       margin-bottom: 6px;
     }
 
     .control-group label span {
-      color: #4a7cff;
-      font-weight: 600;
+      color: var(--amber);
+      font-weight: 700;
     }
 
     input[type="range"] {
       -webkit-appearance: none;
       appearance: none;
       width: 100%;
-      height: 4px;
-      background: #2a2a4a;
+      height: 6px;
+      background: linear-gradient(180deg, var(--steel-0), var(--steel-1));
+      border: 1px solid var(--edge-lo);
       border-radius: 2px;
       outline: none;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.7);
     }
 
     input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: #4a7cff;
+      width: 13px;
+      height: 18px;
+      border-radius: 2px;
+      background:
+        repeating-linear-gradient(90deg, rgba(0,0,0,0.25) 0 1px, transparent 1px 2px),
+        linear-gradient(180deg, #4c525c, #2b3037);
+      border: 1px solid var(--edge-lo);
       cursor: pointer;
-      border: 2px solid #1a1a2e;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 1px 2px rgba(0,0,0,0.6);
     }
 
-    /* Buttons */
+    /* Command keys */
     .btn-row {
       display: flex;
       gap: 8px;
-      margin-top: 14px;
+      margin-top: 16px;
     }
 
     button {
       flex: 1;
-      padding: 8px;
-      font-size: 12px;
-      font-weight: 600;
+      padding: 9px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
       border: none;
-      border-radius: 6px;
+      border-radius: 2px;
       cursor: pointer;
-      transition: opacity 0.2s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      transition: filter 0.15s, transform 0.05s;
     }
 
-    button:hover { opacity: 0.85; }
+    button:hover { filter: brightness(1.1); }
+    button:active { transform: translateY(1px); }
 
     .btn-primary {
-      background: #4a7cff;
-      color: #fff;
+      background: linear-gradient(180deg, #e6a02f, #c07d18);
+      color: #1c1200;
+      border: 1px solid #8a5810;
+      text-shadow: 0 1px 0 rgba(255,255,255,0.25);
     }
 
     .btn-secondary {
-      background: #2a2a4a;
-      color: #ccc;
+      background: linear-gradient(180deg, var(--steel-3), var(--steel-2));
+      color: var(--txt);
+      border: 1px solid var(--edge-lo);
+      border-top-color: var(--edge-hi);
     }
 
-    /* Status */
+    /* Readout */
     .status {
       text-align: center;
-      font-size: 11px;
-      color: #4a7cff;
+      font-size: 10px;
+      letter-spacing: 0.5px;
+      color: var(--amber);
       margin-top: 8px;
       min-height: 16px;
       transition: opacity 0.3s;
@@ -242,7 +319,7 @@
   </style>
 </head>
 <body>
-  <h1><span class="icon">🖼️</span> Gemini Wallpaper</h1>
+  <h1><span class="led"></span> Gemini Wallpaper</h1>
 
   <!-- Enable toggle -->
   <div class="toggle-row">
@@ -282,7 +359,7 @@
 
   <!-- Pet type picker -->
   <div class="control-group">
-    <label>Pet Type <span id="petTypeVal" style="color:#4a7cff;font-weight:600;">Duck</span></label>
+    <label>Pet Type <span id="petTypeVal">Duck</span></label>
     <div class="font-options">
       <button class="font-btn selected" data-pet="duck">🦆 Duck</button>
       <button class="font-btn" data-pet="dog">🐶 Dog</button>
@@ -302,7 +379,7 @@
 
   <!-- Image quality -->
   <div class="control-group">
-    <label>Image Quality <span id="qualityVal" style="color:#4a7cff;font-weight:600;">Medium</span></label>
+    <label>Image Quality <span id="qualityVal">Medium</span></label>
     <div class="font-options">
       <button class="font-btn" data-quality="low">Low</button>
       <button class="font-btn selected" data-quality="medium">Medium</button>
@@ -313,7 +390,7 @@
 
   <!-- Latin font picker -->
   <div class="control-group">
-    <label>Latin Font <span id="fontVal" style="color:#4a7cff;font-weight:600;">Default</span></label>
+    <label>Latin Font <span id="fontVal">Default</span></label>
     <div class="font-options">
       <button class="font-btn selected" data-font="" data-group="latin">Default</button>
       <button class="font-btn" data-font="Inter" data-group="latin">Inter</button>
@@ -325,7 +402,7 @@
 
   <!-- Chinese font picker -->
   <div class="control-group">
-    <label>中文字體 <span id="cjkFontVal" style="color:#4a7cff;font-weight:600;">預設</span></label>
+    <label>中文字體 <span id="cjkFontVal">預設</span></label>
     <div class="font-options">
       <button class="font-btn selected" data-font="" data-group="cjk">預設</button>
       <button class="font-btn" data-font="Noto Serif TC" data-group="cjk">思源宋</button>
@@ -341,9 +418,10 @@
     <label>
       Glass Tint
       <span style="display:flex;align-items:center;gap:6px;">
+        <button class="font-btn" id="autoThemeBtn" type="button" title="Match tint to wallpaper colors">Auto</button>
         <input type="color" id="glassColor" value="#000000"
-          style="width:22px;height:18px;border:none;border-radius:3px;cursor:pointer;padding:0;background:none;" />
-        <span id="glassOpacityVal" style="color:#4a7cff;font-weight:600;">45%</span>
+          style="width:22px;height:18px;border:none;border-radius:2px;cursor:pointer;padding:0;background:none;" />
+        <span id="glassOpacityVal">45%</span>
       </span>
     </label>
     <input type="range" id="glassOpacity" min="0" max="100" value="45" />
