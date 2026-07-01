@@ -21,6 +21,8 @@ const brightnessSlider = $("#brightnessSlider");
 const brightnessVal   = $("#brightnessVal");
 const petToggle       = $("#petToggle");
 const dragToggle      = $("#dragToggle");
+const notesToggle     = $("#notesToggle");
+const thinkingToggle  = $("#thinkingToggle");
 const chatboxScaleSlider = $("#chatboxScaleSlider");
 const chatboxScaleVal    = $("#chatboxScaleVal");
 const petTypeVal      = $("#petTypeVal");
@@ -59,6 +61,8 @@ chrome.storage.local.get(
     petType: "duck",
     chatboxDraggable: false,
     chatboxScale: 100,
+    notesEnabled: false,
+    thinkingBuddy: true,
     imageQuality: "medium",
     imageData: "",
     overlayOpacity: 0.5,
@@ -73,6 +77,8 @@ chrome.storage.local.get(
     enableToggle.checked = s.enabled;
     petToggle.checked = s.petEnabled;
     dragToggle.checked = s.chatboxDraggable;
+    notesToggle.checked = s.notesEnabled;
+    thinkingToggle.checked = s.thinkingBuddy;
     chatboxScaleSlider.value = s.chatboxScale;
     chatboxScaleVal.textContent = s.chatboxScale + "%";
     currentImageData = s.imageData;
@@ -112,6 +118,16 @@ petToggle.addEventListener("change", () => {
 // ── Draggable chatbox toggle ────────────────────────────────
 dragToggle.addEventListener("change", () => {
   chrome.storage.local.set({ chatboxDraggable: dragToggle.checked });
+});
+
+// ── Sticky notes toggle ─────────────────────────────────────
+notesToggle.addEventListener("change", () => {
+  chrome.storage.local.set({ notesEnabled: notesToggle.checked });
+});
+
+// ── Thinking buddy toggle ───────────────────────────────────
+thinkingToggle.addEventListener("change", () => {
+  chrome.storage.local.set({ thinkingBuddy: thinkingToggle.checked });
 });
 
 // ── Chatbox scale slider ────────────────────────────────────
@@ -296,6 +312,8 @@ resetBtn.addEventListener("click", () => {
     enableToggle.checked = true;
     petToggle.checked = false;
     dragToggle.checked = false;
+    notesToggle.checked = false;
+    thinkingToggle.checked = true;
     chatboxScaleSlider.value = 100;
     chatboxScaleVal.textContent = "100%";
     previewImg.style.display = "none";

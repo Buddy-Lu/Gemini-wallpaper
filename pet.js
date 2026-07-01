@@ -66,6 +66,13 @@
   let lastNow = 0;
   let bottomRefreshTimer = 0;
 
+  // Drag placement
+  let groundPx   = 120;     // resting vertical level (px from bottom)
+  let autoGround = true;    // follow the input bar until the pet is placed
+  let bottomPx   = 120;     // current CSS bottom (px)
+  let dragging   = false;
+  let dragDX = 0, dragDY = 0; // cursor→pet offset while grabbed
+
   // ── Helpers ───────────────────────────────────────────────
   function pick(choices) {
     const total = choices.reduce((s, [, w]) => s + w, 0);
@@ -74,6 +81,7 @@
     return choices[0][0];
   }
   function rand(min, max) { return min + Math.random() * (max - min); }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function maxX() { return window.innerWidth - PET_SIZE; }
 
   function bottomOffset() {
@@ -113,11 +121,20 @@
     const dt = lastNow ? Math.min(now - lastNow, 100) : 16;
     lastNow = now;
 
-    bottomRefreshTimer += dt;
-    if (bottomRefreshTimer >= 2000) {
-      bottomRefreshTimer = 0;
-      petEl.style.bottom = bottomOffset() + "px";
+    // While grabbed the pet is positioned by the mouse handlers — freeze here
+    // but keep the RAF loop alive so it resumes cleanly on release.
+    if (dragging) return;
+
+    // Resting level: track the input bar until the user drops the pet
+    // somewhere — after that it stays where it was placed.
+    if (autoGround) {
+      bottomRefreshTimer += dt;
+      if (bottomRefreshTimer >= 2000) {
+        bottomRefreshTimer = 0;
+        groundPx = bottomOffset();
+      }
     }
+    bottomPx = groundPx;
 
     stateMs -= dt;
     if (stateMs <= 0) enterState(pick(TRANSITIONS[state] || TRANSITIONS.idle));
@@ -127,6 +144,49 @@
     if (posX > maxX()) { posX = maxX(); enterState(state.includes("Right") ? state.replace("Right", "Left")  : "idle"); }
 
     petEl.style.left = Math.round(posX) + "px";
+    petEl.style.bottom = Math.round(bottomPx) + "px";
+  }
+
+  // ── Drag handling ─────────────────────────────────────────
+  function onPetDown(e) {
+    if (!enabled || !petEl || e.button !== 0) return;
+    e.preventDefault();
+    dragging = true;
+    const rect = petEl.getBoundingClientRect();
+    dragDX = e.clientX - rect.left;
+    dragDY = e.clientY - rect.top;
+    petEl.style.cursor = "grabbing";
+    document.body.style.userSelect = "none";
+    // Hold pose: freeze on idle, facing forward.
+    state = "idle";
+    stateMs = Infinity;
+    if (imgEl.src !== GIFS.idle) imgEl.src = GIFS.idle;
+    imgEl.style.transform = "scaleX(1)";
+    document.addEventListener("mousemove", onPetMove, true);
+    document.addEventListener("mouseup", onPetUp, true);
+  }
+
+  function onPetMove(e) {
+    if (!dragging) return;
+    e.preventDefault();
+    posX = clamp(e.clientX - dragDX, 0, maxX());
+    const top = e.clientY - dragDY;
+    bottomPx = clamp(window.innerHeight - top - PET_SIZE, 0, window.innerHeight - PET_SIZE);
+    petEl.style.left = Math.round(posX) + "px";
+    petEl.style.bottom = Math.round(bottomPx) + "px";
+  }
+
+  function onPetUp() {
+    if (!dragging) return;
+    dragging = false;
+    lastNow = 0; // reset dt so it doesn't jump after the pause
+    groundPx = bottomPx; // keep the pet at the height it was dropped
+    autoGround = false;  // stop snapping back to the input bar
+    enterState("idle");  // restart the state machine (stateMs was frozen)
+    petEl.style.cursor = "grab";
+    document.body.style.userSelect = "";
+    document.removeEventListener("mousemove", onPetMove, true);
+    document.removeEventListener("mouseup", onPetUp, true);
   }
 
   // ── DOM ───────────────────────────────────────────────────
@@ -142,19 +202,25 @@
       width: PET_SIZE + "px",
       height: PET_SIZE + "px",
       zIndex: "9998",
-      pointerEvents: "none",
+      pointerEvents: "auto",
       userSelect: "none",
+      cursor: "grab",
+      touchAction: "none",
     });
+    petEl.title = "Drag me!";
 
     imgEl = document.createElement("img");
     Object.assign(imgEl.style, {
       width: "100%", height: "100%",
       objectFit: "contain",
       imageRendering: "pixelated",
+      pointerEvents: "none",
     });
     imgEl.alt = "";
+    imgEl.draggable = false; // suppress native image drag-and-drop
 
     petEl.appendChild(imgEl);
+    petEl.addEventListener("mousedown", onPetDown);
     document.body.appendChild(petEl);
 
     window.addEventListener("resize", () => {
@@ -167,6 +233,10 @@
     posX = rand(PET_SIZE, window.innerWidth - PET_SIZE * 2);
     lastNow = 0;
     bottomRefreshTimer = 0;
+    groundPx = bottomOffset();
+    autoGround = true;
+    bottomPx = groundPx;
+    dragging = false;
     enterState("idle");
     animId = requestAnimationFrame(tick);
   }
@@ -174,6 +244,12 @@
   function stopPet() {
     cancelAnimationFrame(animId);
     animId = null;
+    if (dragging) {
+      dragging = false;
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", onPetMove, true);
+      document.removeEventListener("mouseup", onPetUp, true);
+    }
     document.getElementById("gwp-pet")?.remove();
     petEl = null;
     imgEl = null;

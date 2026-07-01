@@ -51,25 +51,34 @@
     return `rgba(${r}, ${g}, ${b}, ${a})`;
   }
 
-  // ── Global look (one <style>, rebuilt on change) ──────────────
-  function borderCss() {
-    switch (s.border) {
-      case "none":
-        return "border:none!important;box-shadow:none!important;";
-      case "shiny":
-        // Glossy top highlight + soft glow; keeps rounded corners.
-        return "border:1px solid rgba(255,255,255,0.35)!important;" +
-          "box-shadow:inset 0 1px 0 rgba(255,255,255,0.35)," +
-          "0 8px 30px rgba(120,150,255,0.28),0 0 0 1px rgba(180,200,255,0.15)!important;";
-      case "synthwave":
-        // Neon pink border with pink+cyan glow.
-        return "border:1px solid #ff2e97!important;" +
-          "box-shadow:0 0 10px rgba(255,46,151,0.6),0 0 22px rgba(0,229,255,0.35)," +
-          "inset 0 0 16px rgba(138,43,226,0.28)!important;";
-      case "solid":
-      default:
-        return "border:1px solid rgba(255,255,255,0.22)!important;box-shadow:none!important;";
-    }
+  // ── Card look, applied inline to the <pre> (so it wraps only the code
+  // text — not Gemini's header/toolbar — and beats class-based rules). ──
+  const BORDERS = {
+    none: { border: "none", shadow: "none" },
+    solid: { border: "1px solid rgba(255,255,255,0.22)", shadow: "none" },
+    // Glossy top highlight + soft glow.
+    shiny: {
+      border: "1px solid rgba(255,255,255,0.35)",
+      shadow: "inset 0 1px 0 rgba(255,255,255,0.35), 0 8px 30px rgba(120,150,255,0.28), 0 0 0 1px rgba(180,200,255,0.15)",
+    },
+    // Neon pink border with pink+cyan glow.
+    synthwave: {
+      border: "1px solid #ff2e97",
+      shadow: "0 0 10px rgba(255,46,151,0.6), 0 0 22px rgba(0,229,255,0.35), inset 0 0 16px rgba(138,43,226,0.28)",
+    },
+  };
+
+  function applyCard(pre) {
+    const rgba = hexToRgba(s.tintColor || "#0f1020", (s.tintOpacity ?? 55) / 100);
+    const b = BORDERS[s.border] || BORDERS.solid;
+    pre.style.setProperty("background-color", rgba, "important");
+    pre.style.setProperty("backdrop-filter", `blur(${s.blur}px)`, "important");
+    pre.style.setProperty("-webkit-backdrop-filter", `blur(${s.blur}px)`, "important");
+    pre.style.setProperty("border-radius", s.radius + "px", "important");
+    pre.style.setProperty("border", b.border, "important");
+    pre.style.setProperty("box-shadow", b.shadow, "important");
+    pre.style.setProperty("transition",
+      "background-color .3s ease, box-shadow .3s ease, border-color .3s ease", "important");
   }
 
   function applyStyle() {
@@ -83,8 +92,6 @@
       document.head.appendChild(l);
     }
 
-    const rgba = hexToRgba(s.tintColor || "#0f1020", (s.tintOpacity ?? 55) / 100);
-
     let style = document.getElementById("gwp-code-style");
     if (!style) {
       style = document.createElement("style");
@@ -92,21 +99,20 @@
       (document.head || document.documentElement).appendChild(style);
     }
     style.textContent = `
+      /* Host is just a positioning context now — the visible card lives on the
+         <pre> (set inline in applyCard), so the border wraps only the code text
+         and never the header/toolbar. No overflow:hidden here, so wide code
+         can't clip the download/copy buttons. */
       code-block {
-        display: block !important;   /* host is often display:contents — force a real box */
+        display: block !important;
         position: relative !important;
-        background-color: ${rgba} !important;
-        backdrop-filter: blur(${s.blur}px) !important;
-        -webkit-backdrop-filter: blur(${s.blur}px) !important;
-        border-radius: ${s.radius}px !important;
-        ${borderCss()}
-        overflow: hidden !important;
-        transition: background-color .3s ease, box-shadow .3s ease, border-color .3s ease !important;
+        background: transparent !important;
       }
-      /* Clear Gemini's own solid backgrounds so our tint shows through. */
+      /* Clear Gemini's own solid backgrounds on every layer EXCEPT the <pre>
+         (whose inline tint wins over this). The header floats on the wallpaper. */
+      code-block > *,
       code-block .code-block-decoration,
       code-block .formatted-code-block-internal-container,
-      code-block pre,
       code-block code {
         background: transparent !important;
       }
@@ -150,10 +156,31 @@
   // class-based rules (a plain `code-block code` selector would lose). The
   // gutter copies the code element's *computed* metrics so numbers stay
   // aligned no matter what line-height/size actually wins the cascade.
+  // Gemini pins the code header (div.code-block-decoration.header-formatted,
+  // position: sticky; top: -16px) so it slides over the code while scrolling.
+  // Pin it to the top of the block instead. Inline `important` beats Gemini's
+  // multi-class rule that a plain selector loses to. Falls back to a generic
+  // sticky scan (excluding the code body) if the class ever gets renamed.
+  function pinSticky(cb, pre) {
+    let found = cb.querySelectorAll(".code-block-decoration, .header-formatted");
+    if (!found.length && pre) {
+      found = [...cb.querySelectorAll("*")].filter(
+        (el) => el !== pre && !pre.contains(el) && getComputedStyle(el).position === "sticky"
+      );
+    }
+    found.forEach((el) => {
+      if (pre && pre.contains(el)) return;
+      el.style.setProperty("position", "static", "important");
+    });
+  }
+
   function applyBlock(cb) {
     const pre = cb.querySelector("pre");
     if (!pre) return;
     const codeEl = pre.querySelector("code") || pre;
+
+    applyCard(pre);
+    pinSticky(cb, pre);
 
     const fam = s.font ? `'${s.font}', ui-monospace, monospace` : "";
     [pre, codeEl].forEach((el) => {
@@ -162,10 +189,14 @@
       el.style.setProperty("font-size", s.fontSize + "px", "important");
     });
 
+    // Comfortable padding inside the card (Gemini's own is too tight against
+    // the new border). Left grows to fit the gutter when line numbers are on.
+    pre.style.setProperty("padding-right", "18px", "important");
+
     let gutter = pre.querySelector(":scope > .gwp-code-gutter");
     if (!s.lineNumbers) {
       if (gutter) gutter.remove();
-      pre.style.removeProperty("padding-left");
+      pre.style.setProperty("padding-left", "18px", "important");
       pre.style.removeProperty("position");
       return;
     }
@@ -181,7 +212,7 @@
 
     pre.style.position = "relative";
     const digits = String(count).length;
-    pre.style.paddingLeft = (digits + 3) + "ch";
+    pre.style.setProperty("padding-left", (digits + 3.5) + "ch", "important");
 
     // Match the code's real rendered metrics (measured after the font/size
     // and padding above are applied).
