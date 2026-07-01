@@ -83,8 +83,12 @@
     // Only the page background layers — NOT UI chrome (sidebar, input bar)
     "body",
     "bard-app",
+    "gemini-app",          // possible new root tag after 2026 redesign
     "main",
     "[role='main']",
+    ".main-content",
+    ".chat-container",
+    ".conversation-container",
   ];
 
   // Extra: target elements with inline dark backgrounds
@@ -212,11 +216,17 @@
     const b = parseInt(hex.slice(5, 7), 16);
     const rgba = `rgba(${r}, ${g}, ${b}, ${opacity})`;
 
+    // Use specific custom-element tag names only. Class names like `.input-area`
+    // were too broad — they matched the outer wrapper holding the whole
+    // conversation, painting a giant tinted box over half the screen.
     const style = document.createElement("style");
     style.id = "gwp-glass-style";
     style.textContent = `
       bard-sidenav,
+      gemini-sidenav,
       input-area-v2,
+      input-area-v3,
+      input-area-v4,
       .user-query-bubble-with-background {
         background-color: ${rgba} !important;
       }

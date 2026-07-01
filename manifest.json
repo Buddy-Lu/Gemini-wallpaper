@@ -8,9 +8,15 @@
   "content_scripts": [
     {
       "matches": ["https://gemini.google.com/*"],
-      "js": ["content.js", "pet.js", "annotations.js", "math.js"],
-      "css": ["content.css"],
+      "js": ["katex/katex.min.js", "content.js", "pet.js", "annotations.js", "math.js", "chatbox-drag.js"],
+      "css": ["katex/katex.min.css", "content.css"],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["katex/fonts/*"],
+      "matches": ["https://gemini.google.com/*"]
     }
   ],
   "action": {

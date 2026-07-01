@@ -262,6 +262,24 @@
     </label>
   </div>
 
+  <!-- Draggable chatbox -->
+  <div class="toggle-row">
+    <label for="dragToggle">Draggable Chatbox (jelly)</label>
+    <label class="switch">
+      <input type="checkbox" id="dragToggle" />
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <!-- Chatbox scale -->
+  <div class="control-group">
+    <label>
+      Chatbox Scale
+      <span id="chatboxScaleVal">100%</span>
+    </label>
+    <input type="range" id="chatboxScaleSlider" min="50" max="150" value="100" step="5" />
+  </div>
+
   <!-- Pet type picker -->
   <div class="control-group">
     <label>Pet Type <span id="petTypeVal" style="color:#4a7cff;font-weight:600;">Duck</span></label>
@@ -279,6 +297,17 @@
       or Ctrl+V to paste from clipboard
     </div>
     <img id="previewImg" style="display:none" />
+  </div>
+
+  <!-- Image quality -->
+  <div class="control-group">
+    <label>Image Quality <span id="qualityVal" style="color:#4a7cff;font-weight:600;">Medium</span></label>
+    <div class="font-options">
+      <button class="font-btn" data-quality="low">Low</button>
+      <button class="font-btn selected" data-quality="medium">Medium</button>
+      <button class="font-btn" data-quality="high">High</button>
+      <button class="font-btn" data-quality="original">Original</button>
+    </div>
   </div>
 
   <!-- Latin font picker -->

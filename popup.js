@@ -19,10 +19,28 @@ const blurVal         = $("#blurVal");
 const brightnessSlider = $("#brightnessSlider");
 const brightnessVal   = $("#brightnessVal");
 const petToggle       = $("#petToggle");
+const dragToggle      = $("#dragToggle");
+const chatboxScaleSlider = $("#chatboxScaleSlider");
+const chatboxScaleVal    = $("#chatboxScaleVal");
+const petTypeVal      = $("#petTypeVal");
+const petBtns         = document.querySelectorAll(".font-btn[data-pet]");
+const qualityVal      = $("#qualityVal");
+const qualityBtns     = document.querySelectorAll(".font-btn[data-quality]");
+
+// Image quality presets — applied at upload time
+const QUALITY_PRESETS = {
+  low:      { maxW: 1280, jpegQ: 0.75 },
+  medium:   { maxW: 1920, jpegQ: 0.85 },
+  high:     { maxW: 2560, jpegQ: 0.92 },
+  original: null, // raw file bytes, no re-encode
+};
+let currentQuality = "medium";
 const saveBtn         = $("#saveBtn");
 const resetBtn        = $("#resetBtn");
 const statusEl        = $("#status");
-const fontBtns        = document.querySelectorAll(".font-btn");
+// Scoped to font buttons only — pet/quality buttons share the .font-btn class
+// for styling but must NOT trigger the font handler (would clobber chatFont).
+const fontBtns        = document.querySelectorAll(".font-btn[data-group]");
 const fontVal         = $("#fontVal");
 const cjkFontVal      = $("#cjkFontVal");
 const glassColorEl    = $("#glassColor");
@@ -36,6 +54,10 @@ chrome.storage.local.get(
   {
     enabled: true,
     petEnabled: false,
+    petType: "duck",
+    chatboxDraggable: false,
+    chatboxScale: 100,
+    imageQuality: "medium",
     imageData: "",
     overlayOpacity: 0.5,
     blur: 0,
@@ -48,6 +70,9 @@ chrome.storage.local.get(
   (s) => {
     enableToggle.checked = s.enabled;
     petToggle.checked = s.petEnabled;
+    dragToggle.checked = s.chatboxDraggable;
+    chatboxScaleSlider.value = s.chatboxScale;
+    chatboxScaleVal.textContent = s.chatboxScale + "%";
     currentImageData = s.imageData;
 
     overlaySlider.value = Math.round(s.overlayOpacity * 100);
@@ -72,6 +97,8 @@ chrome.storage.local.get(
 
     setActiveFont("latin", s.chatFont);
     setActiveFont("cjk", s.cjkFont);
+    setActivePet(s.petType);
+    setActiveQuality(s.imageQuality);
   }
 );
 
@@ -80,9 +107,71 @@ petToggle.addEventListener("change", () => {
   chrome.storage.local.set({ petEnabled: petToggle.checked });
 });
 
+// ── Draggable chatbox toggle ────────────────────────────────
+dragToggle.addEventListener("change", () => {
+  chrome.storage.local.set({ chatboxDraggable: dragToggle.checked });
+});
+
+// ── Chatbox scale slider ────────────────────────────────────
+chatboxScaleSlider.addEventListener("input", () => {
+  const v = parseInt(chatboxScaleSlider.value);
+  chatboxScaleVal.textContent = v + "%";
+  chrome.storage.local.set({ chatboxScale: v });
+});
+
+// ── Pet type picker ─────────────────────────────────────────
+function setActivePet(type) {
+  let matched = null;
+  petBtns.forEach(btn => {
+    const isMatch = btn.dataset.pet === type;
+    btn.classList.toggle("selected", isMatch);
+    if (isMatch) matched = btn;
+  });
+  if (petTypeVal) petTypeVal.textContent = matched?.textContent.trim() || "Duck";
+}
+
+petBtns.forEach(btn => {
+  btn.addEventListener("click", () => {
+    const type = btn.dataset.pet;
+    setActivePet(type);
+    chrome.storage.local.set({ petType: type });
+  });
+});
+
+// ── Image quality picker ────────────────────────────────────
+function setActiveQuality(q) {
+  if (!QUALITY_PRESETS.hasOwnProperty(q)) q = "medium";
+  currentQuality = q;
+  let matched = null;
+  qualityBtns.forEach(btn => {
+    const isMatch = btn.dataset.quality === q;
+    btn.classList.toggle("selected", isMatch);
+    if (isMatch) matched = btn;
+  });
+  if (qualityVal) qualityVal.textContent = matched?.textContent.trim() || "Medium";
+}
+
+qualityBtns.forEach(btn => {
+  btn.addEventListener("click", () => {
+    const q = btn.dataset.quality;
+    setActiveQuality(q);
+    chrome.storage.local.set({ imageQuality: q });
+    showStatus("Quality set — re-upload to apply");
+  });
+});
+
 // ── Image upload (drag & drop + clipboard paste) ────────────
 // Avoids any native file picker dialog — on Linux, opening GTK file
 // dialogs from an extension popup crashes Chrome regardless of the API used.
+
+function readFileAsDataURL(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload  = () => res(r.result);
+    r.onerror = () => rej(r.error);
+    r.readAsDataURL(file);
+  });
+}
 
 async function processFile(file) {
   if (!file || !file.type.startsWith("image/")) {
@@ -94,24 +183,34 @@ async function processFile(file) {
     return;
   }
 
-  const objectUrl = URL.createObjectURL(file);
+  const preset = QUALITY_PRESETS[currentQuality] ?? QUALITY_PRESETS.medium;
+
   try {
-    const img = new Image();
-    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = objectUrl; });
+    if (preset === null) {
+      // Original: store raw file bytes, preserves transparency / animation
+      currentImageData = await readFileAsDataURL(file);
+    } else {
+      const objectUrl = URL.createObjectURL(file);
+      try {
+        const img = new Image();
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = objectUrl; });
 
-    const MAX_W = 1280;
-    const scale = img.naturalWidth > MAX_W ? MAX_W / img.naturalWidth : 1;
-    const w = Math.round(img.naturalWidth * scale);
-    const h = Math.round(img.naturalHeight * scale);
+        const scale = img.naturalWidth > preset.maxW ? preset.maxW / img.naturalWidth : 1;
+        const w = Math.round(img.naturalWidth * scale);
+        const h = Math.round(img.naturalHeight * scale);
 
-    const bitmap = await createImageBitmap(file, { resizeWidth: w, resizeHeight: h, resizeQuality: "medium" });
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    canvas.getContext("2d").drawImage(bitmap, 0, 0);
-    bitmap.close();
+        const bitmap = await createImageBitmap(file, { resizeWidth: w, resizeHeight: h, resizeQuality: "high" });
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d").drawImage(bitmap, 0, 0);
+        bitmap.close();
 
-    currentImageData = canvas.toDataURL("image/jpeg", 0.75);
+        currentImageData = canvas.toDataURL("image/jpeg", preset.jpegQ);
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
 
     previewImg.src = currentImageData;
     previewImg.style.display = "block";
@@ -120,8 +219,6 @@ async function processFile(file) {
     showStatus("Image loaded — click Apply");
   } catch {
     showStatus("Error loading image — try a smaller file.");
-  } finally {
-    URL.revokeObjectURL(objectUrl);
   }
 }
 
@@ -186,6 +283,9 @@ resetBtn.addEventListener("click", () => {
     currentImageData = "";
     enableToggle.checked = true;
     petToggle.checked = false;
+    dragToggle.checked = false;
+    chatboxScaleSlider.value = 100;
+    chatboxScaleVal.textContent = "100%";
     previewImg.style.display = "none";
     uploadPlaceholder.style.display = "block";
     uploadArea.classList.remove("has-image");
@@ -195,6 +295,8 @@ resetBtn.addEventListener("click", () => {
     blurVal.textContent = "0px";
     brightnessSlider.value = 100;
     brightnessVal.textContent = "100%";
+    setActivePet("duck");
+    setActiveQuality("medium");
     showStatus("Reset to defaults.");
   });
 });

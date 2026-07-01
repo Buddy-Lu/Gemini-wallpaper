@@ -22,15 +22,23 @@
   transition: opacity 0.4s ease;
 }
 
-/* Remove Gemini's built-in fade-to-dark gradient above the input box —
-   it was invisible before but shows as an ugly band over a wallpaper */
+/* Gemini's input bottom-strip container used to be a thin gradient (via ::before)
+   but the 2026 redesign moved a solid #0f0f0f background onto input-container
+   itself — that paints a ~113px black band hiding the wallpaper. Clear both. */
+input-container,
 input-container::before {
+  background-color: transparent !important;
   background-image: none !important;
 }
 
-/* Glass surfaces — backdrop blur is fixed; color/opacity injected dynamically by content.js */
+/* Glass surfaces — backdrop blur is fixed; color/opacity injected dynamically by content.js.
+   Stick to custom-element tag names — class selectors like .input-area can match
+   too-broad wrappers and tint half the page. */
 bard-sidenav,
+gemini-sidenav,
 input-area-v2,
+input-area-v3,
+input-area-v4,
 .user-query-bubble-with-background {
   backdrop-filter: blur(12px) !important;
   -webkit-backdrop-filter: blur(12px) !important;

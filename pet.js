@@ -77,7 +77,11 @@
   function maxX() { return window.innerWidth - PET_SIZE; }
 
   function bottomOffset() {
-    for (const sel of ["input-container", "input-area-v2"]) {
+    const selectors = [
+      "input-container", "input-area-v2", "input-area-v3", "input-area-v4",
+      ".input-area", ".input-area-container",
+    ];
+    for (const sel of selectors) {
       for (const el of document.querySelectorAll(sel)) {
         const rect = el.getBoundingClientRect();
         if (rect.height > 0 && rect.top > window.innerHeight * 0.7)
