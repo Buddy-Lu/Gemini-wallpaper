@@ -8,7 +8,7 @@
   "content_scripts": [
     {
       "matches": ["https://gemini.google.com/*"],
-      "js": ["katex/katex.min.js", "content.js", "pet.js", "annotations.js", "math.js", "chatbox-drag.js"],
+      "js": ["katex/katex.min.js", "content.js", "pet.js", "annotations.js", "math.js", "chatbox-drag.js", "code-style.js"],
       "css": ["katex/katex.min.css", "content.css"],
       "run_at": "document_idle"
     }

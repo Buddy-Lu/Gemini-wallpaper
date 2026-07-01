@@ -12,6 +12,7 @@ const enableToggle    = $("#enableToggle");
 const uploadArea      = $("#uploadArea");
 const uploadPlaceholder = $("#uploadPlaceholder");
 const previewImg      = $("#previewImg");
+const fileInput       = $("#fileInput");
 const overlaySlider   = $("#overlaySlider");
 const overlayVal      = $("#overlayVal");
 const blurSlider      = $("#blurSlider");
@@ -160,9 +161,9 @@ qualityBtns.forEach(btn => {
   });
 });
 
-// ── Image upload (drag & drop + clipboard paste) ────────────
-// Avoids any native file picker dialog — on Linux, opening GTK file
-// dialogs from an extension popup crashes Chrome regardless of the API used.
+// ── Image upload (click-to-pick + drag & drop + clipboard paste) ─
+// Note: on Linux, opening a native file dialog from an extension popup
+// can crash Chrome; drag & drop and Ctrl+V remain as safe fallbacks.
 
 function readFileAsDataURL(file) {
   return new Promise((res, rej) => {
@@ -221,6 +222,16 @@ async function processFile(file) {
     showStatus("Error loading image — try a smaller file.");
   }
 }
+
+// Click to choose from folder
+uploadArea.addEventListener("click", () => {
+  fileInput.click();
+});
+fileInput.addEventListener("change", () => {
+  const file = fileInput.files[0];
+  if (file) processFile(file);
+  fileInput.value = ""; // reset so re-selecting the same file fires change
+});
 
 // Drag and drop
 uploadArea.addEventListener("dragover", (e) => {
