@@ -447,10 +447,14 @@
   });
 
   // ── Boot ──────────────────────────────────────────────────────
+  // Throttle (not a resetting debounce): under a continuous mutation stream
+  // (e.g. another module re-injecting sidebar nodes) a resetting debounce would
+  // never fire and code blocks would never get styled. This guarantees a run
+  // ~every 300ms while mutations keep coming.
   let timer = null;
   const observer = new MutationObserver(() => {
-    clearTimeout(timer);
-    timer = setTimeout(scan, 300);
+    if (timer) return;
+    timer = setTimeout(() => { timer = null; scan(); }, 300);
   });
 
   chrome.storage.local.get({ codeStyle: DEFAULTS }, (stored) => {

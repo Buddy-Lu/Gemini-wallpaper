@@ -1,107 +1,89 @@
 /**
- * Gemini Wallpaper - Draggable chatbox with jelly physics
+ * Gemini Wallpaper - Chatbox as a real window + standalone magic ball
  *
- * Drag translates the chatbox via CSS transform (no layout reflow).
- * Velocity drives a live skewX + stretch deformation that springs back.
+ * The input box behaves like an OS window, driven by genuine geometry
+ * (position:fixed + left/top/width/height), with macOS-style traffic lights
+ * left of a ⚙ settings button:
+ *   🔴 red    — minimize to a small draggable "chat" chip
+ *   🟡 yellow — restore down (normal windowed size; un-maximize)
+ *   🟢 green  — maximize to the full page/viewport
+ *   ⚙  gear   — art panel (border / tint / blur / radius), reused from code blocks
  *
- * Side walls (mouse-bound morph, NO rotation):
- *   When the chatbox center reaches a side wall, the position locks (wall-side
- *   edge stays at the wall) and morphT is computed each mousemove as
- *   (mouse overshoot past wall) / MORPH_FULL_PX, clamped 0..1.
- *   The transform scales width → H/W and height → W/H (volume preserved),
- *   with transform-origin pinned to the wall-side edge. Border-radius is
- *   compensated so the visible corner stays round at any scale.
- *   The chatbox's children (input field, buttons, icons) get faded out as
- *   morphT grows — a transform: scale on the parent crushes children visually,
- *   so we hide them and let only the outer pill's bg/blur show through.
- *   Pulling the mouse back away from the wall scrubs morphT back to 0
- *   immediately — fully reversible.
- *   On mouseup, morphT LATCHES at its current value (no spring-back). To
- *   un-morph, grab the box again and drag the mouse away, or double-click
- *   the handle to reset.
+ * Move: drag the title bar or the box body (non-input areas).
+ * Resize: drag the box's borders / corners (real window-edge resize).
  *
- * Two ways to start a drag:
- *   1. The floating blue handle above the chatbox
- *   2. Mousedown directly on the chatbox itself (anywhere that isn't an
- *      input / button / contenteditable). Lets you grab the bubble even
- *      if the handle is hard to spot.
- *
- * Scale: `chatboxScale` (50–150%) applies even when drag is off.
+ * The glowing glass ball is INDEPENDENT — a standalone, draggable orb whose
+ * position is remembered. (Its real job is TBD.)
  */
 (function () {
   "use strict";
 
-  // First visible match wins. input-area-v2 is the historical chatbox tag.
-  // Add v3/v4 to survive Gemini renaming. input-container last — it's a thin
-  // gradient strip on the zero-state screen, not the real chatbox.
   const SELECTORS = [
     "input-area-v2", "input-area-v3", "input-area-v4",
     ".text-input-field", ".input-area",
     "input-container",
   ];
-  const HANDLE_ID = "gwp-chatbox-handle";
+
+  const MINW = 240, MINH = 96;
 
   // ── Feature state ─────────────────────────────────────────
   let dragEnabled = false;
-  let userScale   = 1.0;
+  let scalePct    = 100;    // popup size slider → seeds default window size
   let chatbox     = null;
-  let handle      = null;
+  let bar         = null;
+  let chip        = null;
+  let panel       = null;
   let observer    = null;
+  let posTimer    = null;
+  const handles   = {};     // dir → element
 
-  // Rest geometry (chatbox bounds with NO transform applied)
-  let restCenterX = 0, restCenterY = 0;
-  let restWidth   = 0, restHeight  = 0;
+  let winMode = "normal";   // "normal" | "min" | "max"
 
-  // Drag state
-  let dragging    = false;
-  let dragStartX  = 0, dragStartY  = 0;
-  let dragStartTX = 0, dragStartTY = 0;
-  let translateX  = 0, translateY  = 0;
+  // Natural (untransformed) geometry of the box, captured live.
+  let restCX = 0, restCY = 0, restW = 0, restH = 0;
+  // Current windowed geometry (normal mode).
+  let winX = 0, winY = 0, winW = 0, winH = 0;
+  let seeded = false;
 
-  // Mouse velocity (px / ms), smoothed
-  let velX = 0, velY = 0;
-  let lastMouseX = 0, lastMouseY = 0;
-  let lastMoveTime = 0;
+  // Move / resize drag scratch
+  let moving = false, mvX = 0, mvY = 0, mvWinX = 0, mvWinY = 0;
+  let rsDir = "", rsX = 0, rsY = 0, rsRect = null;
 
-  // Jelly deformation (deltas from identity, only used when NOT morphed against a wall)
-  let defSkewX = 0, defStretchX = 0, defStretchY = 0;
-  let defSkewVX = 0, defStretchVX = 0, defStretchVY = 0;
-
-  // Mouse-bound side-wall morph (NO springs, NO rotation).
-  // morphT is recomputed each mousemove from raw mouse overshoot past the wall;
-  // pulling the mouse back scrubs it down. On mouseup it decays to 0.
-  let morphT    = 0;        // 0..1, current applied morph progress
-  let morphSide = "none";   // "left" | "right" | "none"
-
-  let animId = null;
-
-  // Tuning
-  const STIFFNESS       = 0.20;
-  const DAMPING         = 0.65;
-  const K_SKEW          = 14;     // deg per (px/ms) of horizontal velocity
-  const K_STRETCH       = 0.18;
-  const VEL_CLAMP       = 1.5;
-  const MORPH_FULL_PX   = 140;    // mouse must push this many px past the wall to reach morphT = 1
-  const MORPH_CORNER_PX = 26;     // visible border-radius (px) during morph
-  const CONTENT_FADE_K  = 3.5;    // morphT * CONTENT_FADE_K = how fast children fade (1.0 ≈ fully hidden at morphT ≈ 0.29)
+  // Art / card look (own storage key, mirrors the code-block styler).
+  const CARD_DEFAULTS = { tintColor: "#0f1020", tintOpacity: 42, blur: 10, border: "solid", radius: 24 };
+  let card = { ...CARD_DEFAULTS };
 
   // ── Utilities ─────────────────────────────────────────────
   function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function hexToRgba(hex, a) {
+    const r = parseInt(hex.slice(1, 3), 16) || 0;
+    const g = parseInt(hex.slice(3, 5), 16) || 0;
+    const b = parseInt(hex.slice(5, 7), 16) || 0;
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+  }
+  const BORDERS = {
+    none:  { border: "none", shadow: "none" },
+    solid: { border: "1px solid rgba(255,255,255,0.22)", shadow: "none" },
+    shiny: {
+      border: "1px solid rgba(255,255,255,0.35)",
+      shadow: "inset 0 1px 0 rgba(255,255,255,0.35), 0 8px 30px rgba(120,150,255,0.28), 0 0 0 1px rgba(180,200,255,0.15)",
+    },
+    synthwave: {
+      border: "1px solid #ff2e97",
+      shadow: "0 0 10px rgba(255,46,151,0.6), 0 0 22px rgba(0,229,255,0.35), inset 0 0 16px rgba(138,43,226,0.28)",
+    },
+  };
 
-  // Fade the chatbox's direct children — they get visually crushed by the
-  // outer scale(), so we hide them and let only the outer pill (background
-  // + backdrop-blur from the wallpaper extension's CSS) show through.
-  // Cached so we don't reapply identical styles every frame.
-  let lastChildOpacity = -1;
-  function setChildOpacity(o) {
+  let lastChildPtr = -1;
+  function setChildHidden(hidden) {
     if (!chatbox) return;
-    if (Math.abs(o - lastChildOpacity) < 0.01) return;
-    lastChildOpacity = o;
-    const v = o >= 0.999 ? "" : String(o);
-    for (const c of chatbox.children) c.style.opacity = v;
+    const p = hidden ? 1 : 0;
+    if (p === lastChildPtr) return;
+    lastChildPtr = p;
+    for (const c of chatbox.children) c.style.pointerEvents = hidden ? "none" : "";
   }
 
-  // ── DOM lookup ────────────────────────────────────────────
+  // ── DOM lookup / geometry ─────────────────────────────────
   function findChatbox() {
     for (const sel of SELECTORS) {
       for (const el of document.querySelectorAll(sel)) {
@@ -112,264 +94,182 @@
   }
 
   function captureRest() {
-    // Freeze rest geometry for the duration of a drag — any recapture while
-    // dragging would corrupt translate math (mouse-to-position is computed
-    // relative to the rest captured at mousedown).
-    if (!chatbox || dragging) return;
-    const saved = chatbox.style.transform;
-    chatbox.style.transform = "";
-    void chatbox.offsetHeight; // force reflow before measurement
+    if (!chatbox || moving || rsDir) return;
+    // Measure with our window styles stripped so we get the natural box.
+    const props = ["position", "left", "top", "width", "height", "max-width", "margin", "z-index"];
+    const saved = {};
+    props.forEach((p) => { saved[p] = chatbox.style.getPropertyValue(p); chatbox.style.removeProperty(p); });
+    void chatbox.offsetHeight;
     const r = chatbox.getBoundingClientRect();
-    restCenterX = r.left + r.width  / 2;
-    restCenterY = r.top  + r.height / 2;
-    restWidth   = r.width;
-    restHeight  = r.height;
-    chatbox.style.transform = saved;
+    restCX = r.left + r.width / 2;
+    restCY = r.top + r.height / 2;
+    restW = r.width; restH = r.height;
+    props.forEach((p) => { if (saved[p]) chatbox.style.setProperty(p, saved[p], "important"); });
   }
 
-  // ── Handle (visible affordance) ───────────────────────────
-  function createHandle() {
-    if (handle) return;
-    handle = document.createElement("div");
-    handle.id = HANDLE_ID;
-    Object.assign(handle.style, {
-      position:    "fixed",
-      width:       "52px",
-      height:      "12px",
-      background:  "rgba(74, 124, 255, 0.65)",
-      borderRadius: "8px",
-      cursor:      "grab",
-      zIndex:      "9999",
-      boxShadow:   "0 2px 10px rgba(0, 0, 0, 0.35)",
-      transition:  "background 0.15s, transform 0.15s",
-      pointerEvents: "auto",
-    });
-    handle.title = "Drag chatbox — or drag the chatbox itself. Double-click to reset.";
-    handle.addEventListener("mousedown", startDrag);
-    handle.addEventListener("dblclick", resetPosition);
-    handle.addEventListener("mouseenter", () => {
-      handle.style.background = "rgba(74, 124, 255, 0.9)";
-      handle.style.transform  = "scale(1.1)";
-    });
-    handle.addEventListener("mouseleave", () => {
-      if (!dragging) {
-        handle.style.background = "rgba(74, 124, 255, 0.65)";
-        handle.style.transform  = "scale(1)";
+  function seedGeometry() {
+    if (seeded || !restW) return;
+    winW = restW * scalePct / 100;
+    winH = restH * scalePct / 100;
+    winX = restCX - winW / 2;
+    winY = restCY - winH / 2;
+    seeded = true;
+  }
+
+  function currentRect() {
+    if (winMode === "max") return { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
+    return { x: winX, y: winY, w: winW, h: winH };
+  }
+
+  // The box's actual on-screen rect (with our styles applied). Overlays are
+  // glued to THIS so they never drift away from where the box really renders.
+  function liveRect() {
+    if (!chatbox) return null;
+    const b = chatbox.getBoundingClientRect();
+    if (!b.width || !b.height) return null;
+    return { x: b.left, y: b.top, w: b.width, h: b.height };
+  }
+
+  // Gemini's input sits inside <fieldset.input-area-container> which carries a
+  // (usually identity) transform — and ANY transform makes an ancestor the
+  // containing block for position:fixed. So our fixed left/top are measured
+  // from that ancestor, not the viewport. Find it and return its padding-box
+  // origin so we can convert viewport coords → containing-block coords.
+  function cbOrigin() {
+    let n = chatbox && chatbox.parentElement;
+    while (n) {
+      const cs = getComputedStyle(n);
+      if (cs.transform !== "none" || cs.perspective !== "none" || cs.filter !== "none" ||
+          /transform|perspective|filter/.test(cs.willChange || "") ||
+          /paint|layout|strict|content|size/.test(cs.contain || "")) {
+        const r = n.getBoundingClientRect();
+        return { x: r.left + (parseFloat(cs.borderLeftWidth) || 0), y: r.top + (parseFloat(cs.borderTopWidth) || 0) };
       }
-    });
-    document.body.appendChild(handle);
+      n = n.parentElement;
+    }
+    return { x: 0, y: 0 };
   }
 
-  function removeHandle() {
-    handle?.remove();
-    handle = null;
+  function cardRadiusCss() {
+    return dragEnabled && winMode !== "max" ? card.radius + "px" : (winMode === "max" ? "0px" : "");
   }
 
-  // Handle follows the VISIBLE box. During a wall morph the rest-frame center
-  // stays put but the visual center shifts toward the wall (transform-origin is
-  // pinned there), and visible height grows from halfRestH → halfRestW. Track
-  // both so the handle stays anchored above the morphed strip.
-  function positionHandle() {
-    if (!handle) return;
-    const halfRestW = (restWidth  / 2) * userScale;
-    const halfRestH = (restHeight / 2) * userScale;
-    const halfVisibleW = halfRestW + morphT * (halfRestH - halfRestW);
-    const halfVisibleH = halfRestH + morphT * (halfRestW - halfRestH);
-
-    let cx;
-    if (morphSide === "right" && morphT > 0)      cx = window.innerWidth - halfVisibleW;
-    else if (morphSide === "left"  && morphT > 0) cx = halfVisibleW;
-    else                                           cx = restCenterX + translateX;
-    const cy = restCenterY + translateY;
-
-    const desiredLeft = cx - 26;
-    const desiredTop  = cy - halfVisibleH - 18;
-    handle.style.left = clamp(desiredLeft, 4, window.innerWidth  - 56) + "px";
-    handle.style.top  = clamp(desiredTop,  4, window.innerHeight - 24) + "px";
-  }
-
-  // ── Transform ─────────────────────────────────────────────
-  function isIdentity() {
-    return userScale === 1
-      && translateX === 0 && translateY === 0
-      && Math.abs(defSkewX)    < 0.05
-      && Math.abs(defStretchX) < 0.001
-      && Math.abs(defStretchY) < 0.001
-      && morphT < 0.001;
-  }
-
-  function applyTransform() {
+  // ── Apply window geometry + card art ──────────────────────
+  function clearWindowStyles() {
     if (!chatbox) return;
-    if (isIdentity()) {
-      chatbox.style.transform       = "";
-      chatbox.style.transformOrigin = "";
-      chatbox.style.borderRadius    = "";
-      chatbox.style.overflow        = "";
-      chatbox.style.willChange      = "";
-      setChildOpacity(1);
-      return;
-    }
-
-    if (morphT > 0 && morphSide !== "none") {
-      // Volume-preserving squash + stretch.
-      // At morphT=0: scale (1, 1) — natural shape.
-      // At morphT=1: scaleX = H/W (shrink wide pill to a thin vertical strip),
-      //              scaleY = W/H (grow tall to the same volume).
-      // Origin is pinned to the wall-side edge so the box collapses INTO the wall.
-      const aspect = restHeight / restWidth; // wide pill ⇒ aspect ≪ 1
-      const sx = userScale * (1 + morphT * (aspect       - 1));
-      const sy = userScale * (1 + morphT * (1 / aspect   - 1));
-      const originX = morphSide === "right" ? "100%" : "0%";
-
-      // Compensate border-radius so the visible corner stays ~MORPH_CORNER_PX
-      // after the scale chews on it. Browser clamps to half-side automatically,
-      // so a huge pre-scale radius just yields a clean pill at any aspect.
-      const rx = MORPH_CORNER_PX / Math.max(sx, 0.001);
-      const ry = MORPH_CORNER_PX / Math.max(sy, 0.001);
-
-      chatbox.style.transform       = `translate(${translateX}px, ${translateY}px) scale(${sx}, ${sy})`;
-      chatbox.style.transformOrigin = `${originX} 50%`;
-      chatbox.style.borderRadius    = `${rx}px / ${ry}px`;
-      chatbox.style.overflow        = "hidden"; // suppress portal/overflow content escaping the pill
-      chatbox.style.willChange      = "transform";
-
-      // Hide inner content so the children don't render crushed/stretched
-      // within the scaled pill. Fully faded by ~morphT 0.29 → from then on
-      // the pill is a clean colored strip.
-      setChildOpacity(clamp(1 - morphT * CONTENT_FADE_K, 0, 1));
-      return;
-    }
-
-    // Free drag (no morph): velocity-driven skew + stretch around center.
-    const sx = userScale * (1 + defStretchX);
-    const sy = userScale * (1 + defStretchY);
-    chatbox.style.transform =
-      `translate(${translateX}px, ${translateY}px) scale(${sx}, ${sy}) skewX(${defSkewX}deg)`;
-    chatbox.style.transformOrigin = "center center";
-    chatbox.style.borderRadius    = "";
-    chatbox.style.overflow        = "";
-    chatbox.style.willChange      = "transform";
-    setChildOpacity(1);
+    ["position", "left", "top", "width", "height", "max-width", "margin", "z-index",
+     "border-radius", "opacity", "box-sizing", "overflow",
+     "background-color", "backdrop-filter", "-webkit-backdrop-filter", "border", "box-shadow", "transition"]
+      .forEach((p) => chatbox.style.removeProperty(p));
+    setChildHidden(false);
   }
 
-  // ── Wall morph + position clamp ──────────────────────────
-  // SCRUB MODEL: morphT is a direct function of mouse overshoot past a side wall.
-  // No springs, no easing on the way in — pull the mouse back and the morph
-  // immediately unwinds. (Only on mouseup does morphT decay over a few frames.)
-  //
-  //   morphT = clamp((mouseOvershootPastWall) / MORPH_FULL_PX, 0, 1)
-  //
-  // While morphT > 0, the rest-frame box's wall-side edge is locked at the wall.
-  // The visible squash + stretch comes entirely from applyTransform()'s scale +
-  // transform-origin = wall edge.
-  function updateWallPressureAndClamp(desiredTX, desiredTY) {
-    const halfRestW = (restWidth  / 2) * userScale;
-    const halfRestH = (restHeight / 2) * userScale;
+  function applyGeometry() {
+    if (!chatbox) return;
+    if (!dragEnabled) { clearWindowStyles(); return; }
+    const r = currentRect();
+    const o = cbOrigin();          // viewport → containing-block offset
+    const set = (p, v) => chatbox.style.setProperty(p, v, "important");
+    set("position", "fixed");
+    set("left", Math.round(r.x - o.x) + "px");
+    set("top", Math.round(r.y - o.y) + "px");
+    set("width", Math.round(r.w) + "px");
+    set("height", Math.round(r.h) + "px");
+    set("max-width", "none");
+    set("margin", "0");
+    set("box-sizing", "border-box");
+    set("z-index", "9997");
+    chatbox.style.borderRadius = cardRadiusCss();
 
-    const desiredCx = restCenterX + desiredTX;
-    const desiredCy = restCenterY + desiredTY;
-
-    // Rest-frame overshoot past each side wall (in px, positive when past).
-    const overflowLeft  = (halfRestW) - desiredCx;                              // >0 if pushing left
-    const overflowRight = desiredCx - (window.innerWidth  - halfRestW);         // >0 if pushing right
-
-    // Pick the dominant side. Ties (neither active) ⇒ morph clears.
-    if (overflowRight > 0 && overflowRight >= overflowLeft) {
-      morphSide = "right";
-      morphT    = clamp(overflowRight / MORPH_FULL_PX, 0, 1);
-      // Lock the unscaled box's right edge at the right wall — scale collapses
-      // toward this edge via transform-origin, so the wall-side stays flush.
-      translateX = (window.innerWidth - halfRestW) - restCenterX;
-    } else if (overflowLeft > 0) {
-      morphSide = "left";
-      morphT    = clamp(overflowLeft / MORPH_FULL_PX, 0, 1);
-      translateX = halfRestW - restCenterX;
+    if (winMode === "min") {
+      chatbox.style.setProperty("opacity", "0", "important");
+      setChildHidden(true);
     } else {
-      // Not pushing into a side wall — free drag. Scrub morph back to 0
-      // IMMEDIATELY so reversal is seamless and mouse-bound.
-      morphSide = "none";
-      morphT    = 0;
-      translateX = clamp(desiredTX, halfRestW - restCenterX, (window.innerWidth - halfRestW) - restCenterX);
+      chatbox.style.removeProperty("opacity");
+      setChildHidden(false);
     }
-
-    // Y axis: no morph; just keep the center inside the viewport.
-    translateY = clamp(desiredTY, halfRestH - restCenterY, (window.innerHeight - halfRestH) - restCenterY);
+    applyCardColors();
   }
 
-  // ── Drag ──────────────────────────────────────────────────
-  function startDrag(e) {
-    if (!chatbox || dragging) return; // ignore re-entrant calls — a second
-    // startDrag mid-drag would reset dragStart* to a stale mouse position
-    // and corrupt the translate math.
-    e.preventDefault();
-    e.stopPropagation();
-    captureRest();
-    dragging = true;
-    if (handle) handle.style.cursor = "grabbing";
-    document.body.style.cursor     = "grabbing";
+  function applyCardColors() {
+    if (!chatbox || !dragEnabled) return;
+    const b = BORDERS[card.border] || BORDERS.solid;
+    if (card.tintOpacity > 0) chatbox.style.setProperty("background-color", hexToRgba(card.tintColor, card.tintOpacity / 100), "important");
+    else chatbox.style.removeProperty("background-color");
+    chatbox.style.setProperty("backdrop-filter", `blur(${card.blur}px)`, "important");
+    chatbox.style.setProperty("-webkit-backdrop-filter", `blur(${card.blur}px)`, "important");
+    chatbox.style.setProperty("border", b.border, "important");
+    chatbox.style.setProperty("box-shadow", b.shadow, "important");
+  }
+
+  // ── Move (title bar / body / chip) ────────────────────────
+  function startMove(e) {
+    if (winMode === "max") return;      // maximized windows don't move
+    e.preventDefault(); e.stopPropagation();
+    seedGeometry();
+    moving = true;
+    mvX = e.clientX; mvY = e.clientY;
+    mvWinX = winX; mvWinY = winY;
     document.body.style.userSelect = "none";
-
-    dragStartX  = e.clientX;
-    dragStartY  = e.clientY;
-    // If re-grabbing a latched morph, pre-load dragStartTX with the morph's
-    // virtual overshoot so the first mouse delta scrubs from the current morphT
-    // instead of snapping to 0 (translateX is locked at the wall, so without
-    // this offset desiredCx = wall position and morphT instantly collapses).
-    const morphOvershoot = morphT * MORPH_FULL_PX *
-      (morphSide === "right" ? 1 : morphSide === "left" ? -1 : 0);
-    dragStartTX = translateX + morphOvershoot;
-    dragStartTY = translateY;
-    lastMouseX  = e.clientX;
-    lastMouseY  = e.clientY;
-    lastMoveTime = performance.now();
-    velX = 0;
-    velY = 0;
-
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup",   endDrag);
-
-    if (!animId) animId = requestAnimationFrame(tick);
+    window.addEventListener("mousemove", onMoveMove, true);
+    window.addEventListener("mouseup", onMoveUp, true);
   }
-
-  function onMouseMove(e) {
-    if (!dragging) return;
-    const now = performance.now();
-    const dt = Math.max(1, now - lastMoveTime);
-    const dx = e.clientX - lastMouseX;
-    const dy = e.clientY - lastMouseY;
-    velX = velX * 0.5 + (dx / dt) * 0.5;
-    velY = velY * 0.5 + (dy / dt) * 0.5;
-
-    const desiredTX = dragStartTX + (e.clientX - dragStartX);
-    const desiredTY = dragStartTY + (e.clientY - dragStartY);
-    updateWallPressureAndClamp(desiredTX, desiredTY);
-
-    lastMouseX = e.clientX;
-    lastMouseY = e.clientY;
-    lastMoveTime = now;
+  function onMoveMove(e) {
+    if (!moving) return;
+    winX = clamp(mvWinX + (e.clientX - mvX), -winW + 60, window.innerWidth - 60);
+    winY = clamp(mvWinY + (e.clientY - mvY), 0, window.innerHeight - 40);
+    applyGeometry();
+    positionOverlays();
   }
-
-  function endDrag() {
-    dragging = false;
-    // morphT keeps its current value here — the tick loop will decay it to 0.
-    if (handle) handle.style.cursor = "grab";
-    document.body.style.cursor     = "";
+  function onMoveUp() {
+    if (!moving) return;
+    moving = false;
     document.body.style.userSelect = "";
-    window.removeEventListener("mousemove", onMouseMove);
-    window.removeEventListener("mouseup",   endDrag);
+    window.removeEventListener("mousemove", onMoveMove, true);
+    window.removeEventListener("mouseup", onMoveUp, true);
+    saveWin();
   }
 
-  function resetPosition() {
-    translateX = translateY = 0;
-    defSkewX = defStretchX = defStretchY = 0;
-    defSkewVX = defStretchVX = defStretchVY = 0;
-    morphT = 0;
-    morphSide = "none";
-    applyTransform();
-    positionHandle();
+  // ── Resize (drag borders / corners) ───────────────────────
+  function startResize(dir, e) {
+    e.preventDefault(); e.stopPropagation();
+    if (winMode !== "normal") { winMode = "normal"; }
+    seedGeometry();
+    rsDir = dir;
+    rsX = e.clientX; rsY = e.clientY;
+    rsRect = { x: winX, y: winY, w: winW, h: winH };
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", onResizeMove, true);
+    window.addEventListener("mouseup", onResizeUp, true);
+  }
+  function onResizeMove(e) {
+    if (!rsDir) return;
+    const dx = e.clientX - rsX, dy = e.clientY - rsY;
+    let { x, y, w, h } = rsRect;
+    if (rsDir.includes("e")) w = rsRect.w + dx;
+    if (rsDir.includes("s")) h = rsRect.h + dy;
+    if (rsDir.includes("w")) { w = rsRect.w - dx; x = rsRect.x + dx; }
+    if (rsDir.includes("n")) { h = rsRect.h - dy; y = rsRect.y + dy; }
+    if (w < MINW) { if (rsDir.includes("w")) x -= (MINW - w); w = MINW; }
+    if (h < MINH) { if (rsDir.includes("n")) y -= (MINH - h); h = MINH; }
+    winX = x; winY = y; winW = w; winH = h;
+    applyGeometry();
+    positionOverlays();
+  }
+  function onResizeUp() {
+    if (!rsDir) return;
+    rsDir = "";
+    document.body.style.userSelect = "";
+    window.removeEventListener("mousemove", onResizeMove, true);
+    window.removeEventListener("mouseup", onResizeUp, true);
+    saveWin();
   }
 
-  // ── Direct chatbox drag (anywhere on the bubble) ──────────
+  function saveWin() {
+    chrome.storage.local.set({ chatboxWin: { x: winX, y: winY, w: winW, h: winH } });
+  }
+
+  // ── Box body drag to move ─────────────────────────────────
   function isInteractiveTarget(target) {
     if (!target || target.nodeType !== 1) return false;
     return !!target.closest(
@@ -377,113 +277,187 @@
       '[role="textbox"], a, mat-icon, .mat-icon, .ql-editor, rich-textarea'
     );
   }
-
   function onChatboxMouseDown(e) {
-    if (!dragEnabled || !chatbox || dragging) return;
-    if (isInteractiveTarget(e.target)) return; // don't hijack typing/buttons
-    startDrag(e);
+    if (!dragEnabled || !chatbox) return;
+    if (winMode === "min") return;
+    if (isInteractiveTarget(e.target)) return;
+    startMove(e);
   }
 
-  // ── Animation tick ────────────────────────────────────────
-  function tick() {
-    if (!dragEnabled) { animId = null; return; }
-
-    if (dragging) {
-      const idleMs = performance.now() - lastMoveTime;
-      if (idleMs > 30) { velX *= 0.7; velY *= 0.7; }
+  // ── Resize handles ────────────────────────────────────────
+  const HANDLE_DIRS = {
+    n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize",
+    ne: "nesw-resize", sw: "nesw-resize", nw: "nwse-resize", se: "nwse-resize",
+  };
+  function createHandles() {
+    for (const dir of Object.keys(HANDLE_DIRS)) {
+      if (handles[dir]) continue;
+      const el = document.createElement("div");
+      el.className = "gwp-rs-handle";
+      el.style.cssText = `position:fixed;z-index:9998;cursor:${HANDLE_DIRS[dir]};display:none;`;
+      el.addEventListener("mousedown", (e) => startResize(dir, e));
+      handles[dir] = el;
+      document.body.appendChild(el);
     }
+  }
+  function removeHandles() {
+    for (const dir of Object.keys(handles)) { handles[dir]?.remove(); delete handles[dir]; }
+  }
+  function positionHandles(r) {
+    const show = winMode === "normal";
+    const T = 8, C = 14; // edge thickness, corner size
+    const place = (dir, x, y, w, h) => {
+      const el = handles[dir]; if (!el) return;
+      el.style.display = show ? "block" : "none";
+      if (!show) return;
+      el.style.left = x + "px"; el.style.top = y + "px";
+      el.style.width = w + "px"; el.style.height = h + "px";
+    };
+    place("n", r.x + C, r.y - T / 2, r.w - 2 * C, T);
+    place("s", r.x + C, r.y + r.h - T / 2, r.w - 2 * C, T);
+    place("w", r.x - T / 2, r.y + C, T, r.h - 2 * C);
+    place("e", r.x + r.w - T / 2, r.y + C, T, r.h - 2 * C);
+    place("nw", r.x - T / 2, r.y - T / 2, C, C);
+    place("ne", r.x + r.w - C + T / 2, r.y - T / 2, C, C);
+    place("sw", r.x - T / 2, r.y + r.h - C + T / 2, C, C);
+    place("se", r.x + r.w - C + T / 2, r.y + r.h - C + T / 2, C, C);
+  }
 
-    // Velocity-driven skew/stretch ONLY when not morphed against a wall —
-    // during a morph the scrub-driven scale owns the look, and stacking the
-    // velocity stretch on top reads as noisy double-deformation.
-    let targetSkewX = 0, targetStretchX = 0, targetStretchY = 0;
-    if (dragging && morphT === 0) {
-      const vx = clamp(velX, -VEL_CLAMP, VEL_CLAMP);
-      const vy = clamp(velY, -VEL_CLAMP, VEL_CLAMP);
-      targetSkewX    = vx * K_SKEW;
-      targetStretchX = Math.abs(vx) * K_STRETCH - Math.abs(vy) * (K_STRETCH * 0.5);
-      targetStretchY = Math.abs(vy) * K_STRETCH - Math.abs(vx) * (K_STRETCH * 0.5);
-    }
+  // ── Control bar + chip ────────────────────────────────────
+  function injectUiStyle() {
+    if (document.getElementById("gwp-chatbox-ui-style")) return;
+    const st = document.createElement("style");
+    st.id = "gwp-chatbox-ui-style";
+    st.textContent = `
+      #gwp-chatbox-bar {
+        position: fixed; z-index: 10000; display: flex; align-items: center; gap: 8px;
+        padding: 6px 9px; border-radius: 10px; background: rgba(20,22,34,.72);
+        backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+        box-shadow: 0 2px 10px rgba(0,0,0,.4); cursor: grab;
+      }
+      #gwp-chatbox-bar .gwp-tl {
+        width: 13px; height: 13px; border-radius: 50%; border: none; padding: 0;
+        cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); transition: filter .12s, transform .12s;
+      }
+      #gwp-chatbox-bar .gwp-tl:hover { filter: brightness(1.15); transform: scale(1.12); }
+      #gwp-chatbox-bar .gwp-tl.red    { background: #ff5f57; }
+      #gwp-chatbox-bar .gwp-tl.yellow { background: #febc2e; }
+      #gwp-chatbox-bar .gwp-tl.green  { background: #28c840; }
+      #gwp-chatbox-bar .gwp-gear {
+        margin-left: 2px; width: 20px; height: 20px; border: none; border-radius: 6px;
+        background: rgba(255,255,255,.10); color: #cfd6ff; font-size: 13px; line-height: 1;
+        cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background .15s;
+      }
+      #gwp-chatbox-bar .gwp-gear:hover { background: rgba(74,124,255,.45); }
+      #gwp-chatbox-chip {
+        position: fixed; z-index: 9999; width: 88px; height: 58px; border-radius: 13px;
+        background: rgba(20,22,34,.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(255,255,255,.12); box-shadow: 0 5px 18px rgba(0,0,0,.5);
+        cursor: grab; display: none; color: #dfe3f4; font: 700 12px/1 'Segoe UI', system-ui, sans-serif;
+      }
+      #gwp-chatbox-chip .gwp-chip-label {
+        position: absolute; left: 0; right: 0; bottom: 9px; text-align: center; letter-spacing: 1.5px; opacity: .92;
+      }
+    `;
+    (document.head || document.documentElement).appendChild(st);
+  }
+  function makeTL(cls, title) {
+    const b = document.createElement("button");
+    b.className = "gwp-tl " + cls; b.type = "button"; b.title = title;
+    return b;
+  }
+  function createBar() {
+    if (bar) return;
+    injectUiStyle();
+    bar = document.createElement("div");
+    bar.id = "gwp-chatbox-bar";
 
-    defSkewVX    += (targetSkewX    - defSkewX)    * STIFFNESS;
-    defStretchVX += (targetStretchX - defStretchX) * STIFFNESS;
-    defStretchVY += (targetStretchY - defStretchY) * STIFFNESS;
-    defSkewVX    *= DAMPING;
-    defStretchVX *= DAMPING;
-    defStretchVY *= DAMPING;
-    defSkewX    += defSkewVX;
-    defStretchX += defStretchVX;
-    defStretchY += defStretchVY;
+    const red = makeTL("red", "Minimize");
+    red.addEventListener("mousedown", (e) => e.stopPropagation());
+    red.addEventListener("click", (e) => { e.stopPropagation(); winMode = "min"; applyGeometry(); positionOverlays(); });
 
-    // morphT is mouse-bound during drag and LATCHED on release — never touched
-    // by tick. To un-morph, the user grabs the box again and drags away (the
-    // mouse-bound update in onMouseMove will scrub morphT back down) or
-    // double-clicks the handle (resetPosition clears it).
+    const yellow = makeTL("yellow", "Restore down");
+    yellow.addEventListener("mousedown", (e) => e.stopPropagation());
+    yellow.addEventListener("click", (e) => { e.stopPropagation(); winMode = "normal"; seedGeometry(); applyGeometry(); positionOverlays(); });
 
-    applyTransform();
-    positionHandle();
+    const green = makeTL("green", "Maximize (full page)");
+    green.addEventListener("mousedown", (e) => e.stopPropagation());
+    green.addEventListener("click", (e) => { e.stopPropagation(); winMode = winMode === "max" ? "normal" : "max"; seedGeometry(); applyGeometry(); positionOverlays(); });
 
-    // Only the velocity skew/stretch springs need extra frames after release —
-    // morphT is latched, so it doesn't drive the loop.
-    const stillMoving = dragging
-      || Math.abs(defSkewX)    > 0.05  || Math.abs(defSkewVX)    > 0.05
-      || Math.abs(defStretchX) > 0.001 || Math.abs(defStretchVX) > 0.001
-      || Math.abs(defStretchY) > 0.001 || Math.abs(defStretchVY) > 0.001;
+    const g = document.createElement("button");
+    g.className = "gwp-gear"; g.type = "button"; g.textContent = "⚙"; g.title = "Input box style";
+    g.addEventListener("mousedown", (e) => e.stopPropagation());
+    g.addEventListener("click", (e) => { e.stopPropagation(); (panel && panel.style.display === "block") ? closePanel() : openPanel(); });
 
-    if (stillMoving) {
-      animId = requestAnimationFrame(tick);
+    bar.appendChild(red); bar.appendChild(yellow); bar.appendChild(green); bar.appendChild(g);
+    bar.addEventListener("mousedown", (e) => { if (e.target.closest(".gwp-tl, .gwp-gear")) return; startMove(e); });
+    document.body.appendChild(bar);
+
+    chip = document.createElement("div");
+    chip.id = "gwp-chatbox-chip";
+    const lbl = document.createElement("div");
+    lbl.className = "gwp-chip-label"; lbl.textContent = "chat";
+    chip.appendChild(lbl);
+    chip.addEventListener("mousedown", (e) => { winMode = "min"; startMove(e); });
+    document.body.appendChild(chip);
+  }
+  function removeBar() { bar?.remove(); bar = null; chip?.remove(); chip = null; }
+
+  // ── Overlay positioning ───────────────────────────────────
+  function positionOverlays() {
+    if (!bar) return;
+    // While we're actively driving geometry (move/resize) or maximized, use the
+    // intended rect; otherwise glue to where the box actually is on screen and
+    // keep the window state in sync so it can't drift apart.
+    let r;
+    if (winMode === "max" || moving || rsDir) {
+      r = currentRect();
     } else {
-      defSkewX = defStretchX = defStretchY = 0;
-      applyTransform();
-      animId = null;
+      const lr = liveRect();
+      r = lr || currentRect();
+      if (lr && winMode === "normal") { winX = lr.x; winY = lr.y; winW = lr.w; winH = lr.h; seeded = true; }
+    }
+    positionHandles(r);
+
+    if (winMode === "min") {
+      const cw = 88, ch = 58;
+      const chipLeft = clamp(r.x, 4, window.innerWidth - cw - 4);
+      const chipTop  = clamp(r.y, 4, window.innerHeight - ch - 4);
+      chip.style.display = "block";
+      chip.style.left = chipLeft + "px"; chip.style.top = chipTop + "px";
+      bar.style.left = (chipLeft + 8) + "px"; bar.style.top = (chipTop + 8) + "px";
+    } else {
+      chip.style.display = "none";
+      const bl = clamp(r.x + 6, 4, window.innerWidth - 150);
+      const bt = clamp(r.y - 34, 4, window.innerHeight - 40);
+      bar.style.left = bl + "px"; bar.style.top = bt + "px";
     }
   }
 
-  // ── Mount / unmount ───────────────────────────────────────
+  // ── Bind / mount ──────────────────────────────────────────
+  function bindChatbox(el)   { el.addEventListener("mousedown", onChatboxMouseDown); }
+  function unbindChatbox(el) { el.removeEventListener("mousedown", onChatboxMouseDown); }
+
   function rebind() {
-    // Don't re-capture rest geometry while the user is actively dragging —
-    // Gemini's Angular layout shifts a lot, and a fresh capture mid-drag
-    // would jerk the chatbox to a wrong position. Resume after release.
-    if (dragging) return;
+    if (moving || rsDir) return;
     const fresh = findChatbox();
     if (fresh && fresh !== chatbox) {
-      if (chatbox) {
-        setChildOpacity(1);                  // clear children before dropping the ref
-        chatbox.style.transform       = "";
-        chatbox.style.transformOrigin = "";
-        chatbox.style.borderRadius    = "";
-        chatbox.style.overflow        = "";
-        chatbox.style.willChange      = "";
-        chatbox.removeEventListener("mousedown", onChatboxMouseDown);
-      }
-      lastChildOpacity = -1; // force re-apply against the new chatbox's children
+      if (chatbox) { clearWindowStyles(); unbindChatbox(chatbox); }
+      lastChildPtr = -1;
       chatbox = fresh;
-      chatbox.addEventListener("mousedown", onChatboxMouseDown);
+      bindChatbox(chatbox);
       captureRest();
-      applyTransform();
+      applyGeometry();
     }
-    positionHandle();
+    positionOverlays();
   }
 
   function ensureChatbox() {
     if (chatbox && document.body.contains(chatbox)) return chatbox;
     chatbox = findChatbox();
-    if (chatbox) {
-      captureRest();
-      console.log(
-        "[Gemini Wallpaper] Chatbox bound:",
-        chatbox.tagName.toLowerCase(),
-        `rest=${Math.round(restWidth)}x${Math.round(restHeight)} center=(${Math.round(restCenterX)},${Math.round(restCenterY)})`
-      );
-    } else {
-      console.warn("[Gemini Wallpaper] Chatbox not found. Tried selectors:", SELECTORS);
-    }
+    if (chatbox) captureRest();
+    else console.warn("[Gemini Wallpaper] Chatbox not found. Tried selectors:", SELECTORS);
     return chatbox;
-  }
-
-  function applyScaleOnly() {
-    if (!ensureChatbox()) return;
-    applyTransform();
   }
 
   function enable() {
@@ -493,68 +467,168 @@
       setTimeout(() => { if (dragEnabled && !chatbox) { dragEnabled = false; enable(); } }, 1000);
       return;
     }
-    createHandle();
-    chatbox.addEventListener("mousedown", onChatboxMouseDown);
-    positionHandle();
-    applyTransform();
+    createBar();
+    createHandles();
+    bindChatbox(chatbox);
+    seedGeometry();
+    applyGeometry();
+    positionOverlays();
     observer = new MutationObserver(rebind);
     observer.observe(document.body, { childList: true, subtree: true });
     window.addEventListener("resize", onResize);
-    window.addEventListener("scroll", positionHandle, true);
+    window.addEventListener("scroll", positionOverlays, true);
+    window.addEventListener("keydown", onKeyDown, true);
+    // Keep the controls stuck to the box even through silent layout reflows.
+    posTimer = setInterval(() => { if (dragEnabled && !moving && !rsDir) positionOverlays(); }, 400);
   }
 
   function disable() {
     if (!dragEnabled) return;
     dragEnabled = false;
-    dragging = false;
-    if (animId) cancelAnimationFrame(animId);
-    animId = null;
-    window.removeEventListener("mousemove", onMouseMove);
-    window.removeEventListener("mouseup",   endDrag);
-    window.removeEventListener("resize",    onResize);
-    window.removeEventListener("scroll",    positionHandle, true);
-    observer?.disconnect();
-    observer = null;
-    if (chatbox) chatbox.removeEventListener("mousedown", onChatboxMouseDown);
-    removeHandle();
-    translateX = translateY = 0;
-    defSkewX = defStretchX = defStretchY = 0;
-    defSkewVX = defStretchVX = defStretchVY = 0;
-    morphT = 0;
-    morphSide = "none";
-    applyTransform(); // keeps userScale if non-default, else clears; restores child opacity
+    moving = false; rsDir = "";
+    window.removeEventListener("mousemove", onMoveMove, true);
+    window.removeEventListener("mouseup", onMoveUp, true);
+    window.removeEventListener("resize", onResize);
+    window.removeEventListener("scroll", positionOverlays, true);
+    window.removeEventListener("keydown", onKeyDown, true);
+    observer?.disconnect(); observer = null;
+    if (posTimer) { clearInterval(posTimer); posTimer = null; }
+    if (chatbox) { unbindChatbox(chatbox); clearWindowStyles(); }
+    removeBar(); removeHandles(); closePanel();
+    winMode = "normal";
   }
 
   function onResize() {
     captureRest();
-    if (dragging) updateWallPressureAndClamp(translateX, translateY);
-    positionHandle();
+    positionOverlays();
   }
+
+  // Esc restores a maximized window to normal (green → yellow).
+  function onKeyDown(e) {
+    if (e.key === "Escape" && dragEnabled && winMode === "max") {
+      winMode = "normal";
+      seedGeometry();
+      applyGeometry();
+      positionOverlays();
+    }
+  }
+
+  // ── Art panel ─────────────────────────────────────────────
+  function saveCard() {
+    chrome.storage.local.set({ chatboxStyle: card });
+    applyCardColors();
+  }
+  function makeBtnRow(labelText, values, current, onPick) {
+    const wrap = document.createElement("div"); wrap.style.cssText = "margin-bottom:10px;";
+    const lab = document.createElement("div");
+    lab.textContent = labelText; lab.style.cssText = "font-size:11px;color:#9aa0c0;margin-bottom:5px;";
+    wrap.appendChild(lab);
+    const row = document.createElement("div"); row.style.cssText = "display:flex;flex-wrap:wrap;gap:5px;";
+    values.forEach(([val, text]) => {
+      const b = document.createElement("button");
+      b.textContent = text; b.dataset.val = val;
+      b.style.cssText = "padding:4px 9px;font-size:11px;font-weight:500;border-radius:5px;cursor:pointer;border:1px solid transparent;background:#2a2a4a;color:#aaa;transition:all .15s;";
+      const sel = () => {
+        row.querySelectorAll("button").forEach((x) => { x.style.borderColor = "transparent"; x.style.color = "#aaa"; x.style.background = "#2a2a4a"; });
+        b.style.borderColor = "#4a7cff"; b.style.color = "#4a7cff"; b.style.background = "rgba(74,124,255,0.14)";
+      };
+      if (val === current) sel();
+      b.addEventListener("click", (e) => { e.stopPropagation(); sel(); onPick(val); });
+      row.appendChild(b);
+    });
+    wrap.appendChild(row);
+    return wrap;
+  }
+  function makeSlider(labelText, min, max, step, current, unit, onInput) {
+    const wrap = document.createElement("div"); wrap.style.cssText = "margin-bottom:10px;";
+    const lab = document.createElement("div"); lab.style.cssText = "display:flex;justify-content:space-between;font-size:11px;color:#9aa0c0;margin-bottom:5px;";
+    const name = document.createElement("span"); name.textContent = labelText;
+    const valEl = document.createElement("span"); valEl.style.cssText = "color:#4a7cff;font-weight:600;"; valEl.textContent = current + unit;
+    lab.appendChild(name); lab.appendChild(valEl);
+    const range = document.createElement("input");
+    range.type = "range"; range.min = min; range.max = max; range.step = step; range.value = current;
+    range.style.cssText = "width:100%;accent-color:#4a7cff;cursor:pointer;";
+    range.addEventListener("input", (e) => { e.stopPropagation(); valEl.textContent = range.value + unit; onInput(parseInt(range.value, 10)); });
+    wrap.appendChild(lab); wrap.appendChild(range);
+    return wrap;
+  }
+  function buildPanel() {
+    const p = document.createElement("div");
+    p.id = "gwp-chatbox-panel";
+    p.style.cssText =
+      "position:fixed;z-index:2147483000;width:246px;max-height:80vh;overflow-y:auto;" +
+      "background:#1a1a2e;border:1px solid #3a3a5a;border-radius:10px;padding:14px;" +
+      "box-shadow:0 12px 40px rgba(0,0,0,0.5);font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0;display:none;";
+    p.addEventListener("mousedown", (e) => e.stopPropagation());
+    p.addEventListener("click", (e) => e.stopPropagation());
+    const title = document.createElement("div");
+    title.textContent = "⚙ Input Box Style";
+    title.style.cssText = "font-size:13px;font-weight:600;color:#fff;margin-bottom:12px;";
+    p.appendChild(title);
+    p.appendChild(makeBtnRow("Border", [
+      ["none", "None"], ["solid", "Border"], ["shiny", "Shiny"], ["synthwave", "Synthwave"],
+    ], card.border, (v) => { card.border = v; saveCard(); }));
+    const tintWrap = document.createElement("div");
+    tintWrap.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:10px;";
+    const tintLab = document.createElement("span");
+    tintLab.textContent = "Tint"; tintLab.style.cssText = "font-size:11px;color:#9aa0c0;flex:1;";
+    const colorEl = document.createElement("input");
+    colorEl.type = "color"; colorEl.value = card.tintColor;
+    colorEl.style.cssText = "width:26px;height:20px;border:none;border-radius:4px;cursor:pointer;padding:0;background:none;";
+    colorEl.addEventListener("input", (e) => { e.stopPropagation(); card.tintColor = colorEl.value; saveCard(); });
+    tintWrap.appendChild(tintLab); tintWrap.appendChild(colorEl);
+    p.appendChild(tintWrap);
+    p.appendChild(makeSlider("Tint Opacity", 0, 100, 1, card.tintOpacity, "%", (v) => { card.tintOpacity = v; saveCard(); }));
+    p.appendChild(makeSlider("Blur", 0, 24, 1, card.blur, "px", (v) => { card.blur = v; saveCard(); }));
+    p.appendChild(makeSlider("Corner Radius", 0, 32, 1, card.radius, "px", (v) => { card.radius = v; if (winMode !== "max") chatbox.style.borderRadius = cardRadiusCss(); saveCard(); }));
+    document.body.appendChild(p);
+    return p;
+  }
+  function openPanel() {
+    if (panel) panel.remove();
+    panel = buildPanel();
+    panel.style.display = "block";
+    const r = bar.getBoundingClientRect();
+    const w = 246, margin = 8;
+    let left = r.left; if (left + w > window.innerWidth) left = window.innerWidth - w - margin; if (left < margin) left = margin;
+    let top = r.bottom + margin;
+    const h = Math.min(panel.offsetHeight, window.innerHeight * 0.8);
+    if (top + h > window.innerHeight - margin) top = Math.max(margin, window.innerHeight - h - margin);
+    panel.style.left = left + "px"; panel.style.top = top + "px";
+  }
+  function closePanel() { if (panel) panel.style.display = "none"; }
+  document.addEventListener("mousedown", (e) => {
+    if (panel && panel.style.display === "block" && !panel.contains(e.target) && !e.target.closest("#gwp-chatbox-bar")) closePanel();
+  });
 
   // ── Init ──────────────────────────────────────────────────
   chrome.storage.local.get(
-    { chatboxDraggable: false, chatboxScale: 100 },
+    { chatboxDraggable: false, chatboxScale: 100, chatboxStyle: CARD_DEFAULTS, chatboxWin: null },
     (s) => {
-      userScale = (s.chatboxScale || 100) / 100;
-      if (s.chatboxDraggable) {
-        enable();
-      } else if (userScale !== 1) {
-        applyScaleOnly();
-      }
+      scalePct = s.chatboxScale || 100;
+      card = { ...CARD_DEFAULTS, ...s.chatboxStyle };
+      if (s.chatboxWin) { winX = s.chatboxWin.x; winY = s.chatboxWin.y; winW = s.chatboxWin.w; winH = s.chatboxWin.h; seeded = true; }
+      if (s.chatboxDraggable) enable();
     }
   );
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
-    if ("chatboxDraggable" in changes) {
-      changes.chatboxDraggable.newValue ? enable() : disable();
-    }
+    if ("chatboxDraggable" in changes) changes.chatboxDraggable.newValue ? enable() : disable();
     if ("chatboxScale" in changes) {
-      userScale = (changes.chatboxScale.newValue || 100) / 100;
-      if (dragEnabled) applyTransform();
-      else             applyScaleOnly();
+      scalePct = changes.chatboxScale.newValue || 100;
+      if (dragEnabled && winMode !== "max") {
+        const cx = winX + winW / 2, cy = winY + winH / 2;
+        winW = restW * scalePct / 100; winH = restH * scalePct / 100;
+        winX = cx - winW / 2; winY = cy - winH / 2;
+        applyGeometry(); positionOverlays(); saveWin();
+      }
+    }
+    if ("chatboxStyle" in changes) {
+      card = { ...CARD_DEFAULTS, ...changes.chatboxStyle.newValue };
+      if (dragEnabled) { applyCardColors(); if (winMode !== "max") chatbox.style.borderRadius = cardRadiusCss(); }
     }
   });
 
-  console.log("[Gemini Wallpaper] Chatbox drag module loaded.");
+  console.log("[Gemini Wallpaper] Chatbox window module loaded.");
 })();

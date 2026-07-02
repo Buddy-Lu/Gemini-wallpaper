@@ -166,6 +166,7 @@
       .${ANCHOR_CLASS} { border-radius: 3px; padding: 0 1px; cursor: pointer; box-shadow: inset 0 -2px 0 rgba(0,0,0,.25); }
       #gwp-lnotes-add {
         position: fixed; left: 16px; bottom: 16px; pointer-events: auto;
+        transition: left .18s ease;
         background: linear-gradient(180deg,#2c3037,#23262b); color: #f0a830;
         border: 1px solid #101215; border-top-color: #40464f; border-radius: 6px;
         padding: 8px 12px; font: 600 12px/1 'Consolas', monospace; text-transform: uppercase;
@@ -204,6 +205,7 @@
     addBtn.title = "Add a note linked to text";
     addBtn.addEventListener("click", (e) => { e.stopPropagation(); startPicking(); });
     layer.appendChild(addBtn);
+    watchSidebar();
 
     hint = document.createElement("div");
     hint.id = "gwp-lnotes-hint";
@@ -422,6 +424,41 @@
     rafId = requestAnimationFrame(frame);
   }
 
+  // ── Keep the ＋Note button clear of the sidebar ────────────
+  // The sidebar (collapsed rail or expanded panel) sits on the left and
+  // overlaps the button's home at left:16px — covering the profile row when
+  // expanded. Slide the button just past the sidebar's right edge instead.
+  let sidebarRO = null, watchedSidebar = null;
+  function findSidebar() {
+    return document.querySelector("bard-sidenav") ||
+           document.querySelector("side-navigation-v2") ||
+           document.querySelector("bard-sidenav-container");
+  }
+  function positionAddBtn() {
+    if (!addBtn) return;
+    let x = 16;
+    const sb = findSidebar();
+    if (sb) {
+      const r = sb.getBoundingClientRect();
+      // Only offset when the sidebar is actually on-screen on the left edge.
+      if (r.width > 40 && r.right > 24 && r.left < 24) x = Math.round(r.right) + 12;
+    }
+    addBtn.style.left = x + "px";
+  }
+  function watchSidebar() {
+    const sb = findSidebar();
+    if (sb !== watchedSidebar) {
+      if (sidebarRO) sidebarRO.disconnect();
+      watchedSidebar = sb;
+      if (sb && window.ResizeObserver) {
+        sidebarRO = new ResizeObserver(() => positionAddBtn());
+        sidebarRO.observe(sb);
+      }
+    }
+    positionAddBtn();
+  }
+  window.addEventListener("resize", positionAddBtn);
+
   // ── Create flow: ＋ then pick text ────────────────────────
   function startPicking() {
     picking = true;
@@ -508,6 +545,8 @@
       mo.disconnect();
       stopLoop();
       cancelPick();
+      if (sidebarRO) { sidebarRO.disconnect(); sidebarRO = null; }
+      watchedSidebar = null;
       layer?.remove();
       layer = null; svg = null; addBtn = null; hint = null;
       cards.clear();
@@ -530,6 +569,7 @@
 
   setInterval(() => {
     if (!enabled) return;
+    watchSidebar();
     if (location.href !== lastUrl) {
       lastUrl = location.href;
       setTimeout(renderCurrent, 700);

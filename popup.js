@@ -21,8 +21,10 @@ const brightnessSlider = $("#brightnessSlider");
 const brightnessVal   = $("#brightnessVal");
 const petToggle       = $("#petToggle");
 const dragToggle      = $("#dragToggle");
+const ballToggle      = $("#ballToggle");
 const notesToggle     = $("#notesToggle");
 const thinkingToggle  = $("#thinkingToggle");
+const bulkDeleteToggle = $("#bulkDeleteToggle");
 const chatboxScaleSlider = $("#chatboxScaleSlider");
 const chatboxScaleVal    = $("#chatboxScaleVal");
 const petTypeVal      = $("#petTypeVal");
@@ -60,9 +62,11 @@ chrome.storage.local.get(
     petEnabled: false,
     petType: "duck",
     chatboxDraggable: false,
+    magicBall: false,
     chatboxScale: 100,
     notesEnabled: false,
     thinkingBuddy: true,
+    bulkDeleteEnabled: false,
     imageQuality: "medium",
     imageData: "",
     overlayOpacity: 0.5,
@@ -77,8 +81,10 @@ chrome.storage.local.get(
     enableToggle.checked = s.enabled;
     petToggle.checked = s.petEnabled;
     dragToggle.checked = s.chatboxDraggable;
+    ballToggle.checked = s.magicBall;
     notesToggle.checked = s.notesEnabled;
     thinkingToggle.checked = s.thinkingBuddy;
+    bulkDeleteToggle.checked = s.bulkDeleteEnabled;
     chatboxScaleSlider.value = s.chatboxScale;
     chatboxScaleVal.textContent = s.chatboxScale + "%";
     currentImageData = s.imageData;
@@ -115,9 +121,14 @@ petToggle.addEventListener("change", () => {
   chrome.storage.local.set({ petEnabled: petToggle.checked });
 });
 
-// ── Draggable chatbox toggle ────────────────────────────────
+// ── Chatbox window toggle ───────────────────────────────────
 dragToggle.addEventListener("change", () => {
   chrome.storage.local.set({ chatboxDraggable: dragToggle.checked });
+});
+
+// ── Magic ball toggle (independent) ─────────────────────────
+ballToggle.addEventListener("change", () => {
+  chrome.storage.local.set({ magicBall: ballToggle.checked });
 });
 
 // ── Sticky notes toggle ─────────────────────────────────────
@@ -128,6 +139,11 @@ notesToggle.addEventListener("change", () => {
 // ── Thinking buddy toggle ───────────────────────────────────
 thinkingToggle.addEventListener("change", () => {
   chrome.storage.local.set({ thinkingBuddy: thinkingToggle.checked });
+});
+
+// ── Bulk delete toggle ──────────────────────────────────────
+bulkDeleteToggle.addEventListener("change", () => {
+  chrome.storage.local.set({ bulkDeleteEnabled: bulkDeleteToggle.checked });
 });
 
 // ── Chatbox scale slider ────────────────────────────────────
@@ -312,8 +328,10 @@ resetBtn.addEventListener("click", () => {
     enableToggle.checked = true;
     petToggle.checked = false;
     dragToggle.checked = false;
+    ballToggle.checked = false;
     notesToggle.checked = false;
     thinkingToggle.checked = true;
+    bulkDeleteToggle.checked = false;
     chatboxScaleSlider.value = 100;
     chatboxScaleVal.textContent = "100%";
     previewImg.style.display = "none";
