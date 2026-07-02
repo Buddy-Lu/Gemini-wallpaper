@@ -35,6 +35,8 @@
   let panel       = null;
   let observer    = null;
   let posTimer    = null;
+  let chaseRAF    = 0;      // rAF id while "chasing" the box back onto its pin
+  let chaseEnd    = 0;      // performance.now() cutoff for the chase burst
   const handles   = {};     // dir → element
 
   let winMode = "normal";   // "normal" | "min" | "max"
@@ -44,6 +46,11 @@
   // Current windowed geometry (normal mode).
   let winX = 0, winY = 0, winW = 0, winH = 0;
   let seeded = false;
+  // Until the user actually grabs the box (drag / resize / traffic light), we
+  // leave Gemini's own position AND sizing alone — the input stays put, grows
+  // with new lines, and can't teleport on navigation. It only becomes a pinned
+  // floating window once the user opts in.
+  let userPlaced = false;
 
   // Move / resize drag scratch
   let moving = false, mvX = 0, mvY = 0, mvWinX = 0, mvWinY = 0;
@@ -116,6 +123,16 @@
     seeded = true;
   }
 
+  // First time the user grabs the box, snapshot its current on-screen rect as
+  // the starting window geometry, then switch into "placed" (pinned) mode.
+  function beginUserPlacement() {
+    if (userPlaced) return;
+    const lr = liveRect();
+    if (lr) { winX = lr.x; winY = lr.y; winW = lr.w; winH = lr.h; }
+    seeded = true;
+    userPlaced = true;
+  }
+
   function currentRect() {
     if (winMode === "max") return { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
     return { x: winX, y: winY, w: winW, h: winH };
@@ -157,7 +174,7 @@
   // ── Apply window geometry + card art ──────────────────────
   function clearWindowStyles() {
     if (!chatbox) return;
-    ["position", "left", "top", "width", "height", "max-width", "margin", "z-index",
+    ["position", "left", "top", "width", "height", "min-height", "max-width", "margin", "z-index",
      "border-radius", "opacity", "box-sizing", "overflow",
      "background-color", "backdrop-filter", "-webkit-backdrop-filter", "border", "box-shadow", "transition"]
       .forEach((p) => chatbox.style.removeProperty(p));
@@ -167,6 +184,22 @@
   function applyGeometry() {
     if (!chatbox) return;
     if (!dragEnabled) { clearWindowStyles(); return; }
+
+    // Art (tint / blur / border / shadow / radius) applies whenever the feature
+    // is on, whether or not the box is a floating window yet.
+    applyCardColors();
+    chatbox.style.borderRadius = cardRadiusCss();
+
+    // Not a window yet: leave Gemini's own layout (position + size) intact so
+    // the input keeps growing with new lines and never jumps on navigation.
+    if (!userPlaced && winMode === "normal") {
+      ["position", "left", "top", "width", "height", "min-height",
+       "max-width", "margin", "z-index", "opacity", "overflow", "transition"]
+        .forEach((p) => chatbox.style.removeProperty(p));
+      setChildHidden(false);
+      return;
+    }
+
     const r = currentRect();
     const o = cbOrigin();          // viewport → containing-block offset
     const set = (p, v) => chatbox.style.setProperty(p, v, "important");
@@ -174,12 +207,24 @@
     set("left", Math.round(r.x - o.x) + "px");
     set("top", Math.round(r.y - o.y) + "px");
     set("width", Math.round(r.w) + "px");
-    set("height", Math.round(r.h) + "px");
     set("max-width", "none");
     set("margin", "0");
     set("box-sizing", "border-box");
     set("z-index", "9997");
-    chatbox.style.borderRadius = cardRadiusCss();
+    set("transition", "none");    // our left/top snaps are instant, never animated
+
+    if (winMode === "max") {
+      // Maximized: hard height + scroll, fills the page.
+      set("height", Math.round(r.h) + "px");
+      set("overflow", "auto");
+      chatbox.style.removeProperty("min-height");
+    } else {
+      // Windowed: the resized height is a FLOOR — the box may still grow taller
+      // for extra lines so the toolbar never overflows past the border.
+      set("min-height", Math.round(r.h) + "px");
+      chatbox.style.removeProperty("height");
+      chatbox.style.removeProperty("overflow");
+    }
 
     if (winMode === "min") {
       chatbox.style.setProperty("opacity", "0", "important");
@@ -188,7 +233,6 @@
       chatbox.style.removeProperty("opacity");
       setChildHidden(false);
     }
-    applyCardColors();
   }
 
   function applyCardColors() {
@@ -206,7 +250,7 @@
   function startMove(e) {
     if (winMode === "max") return;      // maximized windows don't move
     e.preventDefault(); e.stopPropagation();
-    seedGeometry();
+    beginUserPlacement();
     moving = true;
     mvX = e.clientX; mvY = e.clientY;
     mvWinX = winX; mvWinY = winY;
@@ -234,7 +278,7 @@
   function startResize(dir, e) {
     e.preventDefault(); e.stopPropagation();
     if (winMode !== "normal") { winMode = "normal"; }
-    seedGeometry();
+    beginUserPlacement();
     rsDir = dir;
     rsX = e.clientX; rsY = e.clientY;
     rsRect = { x: winX, y: winY, w: winW, h: winH };
@@ -374,15 +418,15 @@
 
     const red = makeTL("red", "Minimize");
     red.addEventListener("mousedown", (e) => e.stopPropagation());
-    red.addEventListener("click", (e) => { e.stopPropagation(); winMode = "min"; applyGeometry(); positionOverlays(); });
+    red.addEventListener("click", (e) => { e.stopPropagation(); beginUserPlacement(); winMode = "min"; applyGeometry(); positionOverlays(); saveWin(); });
 
     const yellow = makeTL("yellow", "Restore down");
     yellow.addEventListener("mousedown", (e) => e.stopPropagation());
-    yellow.addEventListener("click", (e) => { e.stopPropagation(); winMode = "normal"; seedGeometry(); applyGeometry(); positionOverlays(); });
+    yellow.addEventListener("click", (e) => { e.stopPropagation(); beginUserPlacement(); winMode = "normal"; applyGeometry(); positionOverlays(); saveWin(); });
 
     const green = makeTL("green", "Maximize (full page)");
     green.addEventListener("mousedown", (e) => e.stopPropagation());
-    green.addEventListener("click", (e) => { e.stopPropagation(); winMode = winMode === "max" ? "normal" : "max"; seedGeometry(); applyGeometry(); positionOverlays(); });
+    green.addEventListener("click", (e) => { e.stopPropagation(); beginUserPlacement(); winMode = winMode === "max" ? "normal" : "max"; applyGeometry(); positionOverlays(); saveWin(); });
 
     const g = document.createElement("button");
     g.className = "gwp-gear"; g.type = "button"; g.textContent = "⚙"; g.title = "Input box style";
@@ -406,17 +450,10 @@
   // ── Overlay positioning ───────────────────────────────────
   function positionOverlays() {
     if (!bar) return;
-    // While we're actively driving geometry (move/resize) or maximized, use the
-    // intended rect; otherwise glue to where the box actually is on screen and
-    // keep the window state in sync so it can't drift apart.
-    let r;
-    if (winMode === "max" || moving || rsDir) {
-      r = currentRect();
-    } else {
-      const lr = liveRect();
-      r = lr || currentRect();
-      if (lr && winMode === "normal") { winX = lr.x; winY = lr.y; winW = lr.w; winH = lr.h; seeded = true; }
-    }
+    // Overlays always glue to where the box ACTUALLY renders (liveRect) when at
+    // rest — never write that back into winX/winY, or a bad one-frame position
+    // during navigation would get saved and stick (the old teleport bug).
+    const r = (winMode === "max" || moving || rsDir) ? currentRect() : (liveRect() || currentRect());
     positionHandles(r);
 
     if (winMode === "min") {
@@ -432,6 +469,31 @@
       const bt = clamp(r.y - 34, 4, window.innerHeight - 40);
       bar.style.left = bl + "px"; bar.style.top = bt + "px";
     }
+  }
+
+  // ── Keep a pinned window glued to its spot during Gemini's own animations ──
+  // Our box is position:fixed INSIDE Gemini's transformed input container, so
+  // when Gemini animates that container on navigation the box briefly rides
+  // along. Rather than let it drift and correct once (a visible snap), we chase
+  // it back every animation frame for a short burst — the ride is cancelled
+  // within ~16ms, so it never appears to move. Only our own left/top is touched.
+  function boxDrifted() {
+    if (!dragEnabled || !userPlaced || winMode !== "normal" || moving || rsDir) return false;
+    const lr = liveRect();
+    if (!lr) return false;
+    return Math.abs(lr.x - winX) > 1 || Math.abs(lr.y - winY) > 1;
+  }
+  function chaseStep() {
+    chaseRAF = 0;
+    if (!dragEnabled || !userPlaced || winMode !== "normal" || moving || rsDir) return;
+    applyGeometry();          // re-pin: left = winX − current containing-block origin
+    positionOverlays();
+    if (performance.now() < chaseEnd || boxDrifted()) chaseRAF = requestAnimationFrame(chaseStep);
+  }
+  function startChase(ms) {
+    if (!dragEnabled || !userPlaced || winMode !== "normal") return;
+    chaseEnd = performance.now() + (ms || 700);
+    if (!chaseRAF) chaseRAF = requestAnimationFrame(chaseStep);
   }
 
   // ── Bind / mount ──────────────────────────────────────────
@@ -450,21 +512,34 @@
       applyGeometry();
     }
     positionOverlays();
+    // Gemini mutates the DOM heavily during navigation — the very churn that
+    // makes the box ride its animated container. Chase it back through it.
+    if (dragEnabled && userPlaced && winMode === "normal") startChase();
   }
 
+  let warnedNoBox = false;
   function ensureChatbox() {
     if (chatbox && document.body.contains(chatbox)) return chatbox;
     chatbox = findChatbox();
-    if (chatbox) captureRest();
-    else console.warn("[Gemini Wallpaper] Chatbox not found. Tried selectors:", SELECTORS);
+    if (chatbox) { captureRest(); warnedNoBox = false; }
+    else if (!warnedNoBox) {
+      // Warn once, not on every retry — the input area just isn't in the DOM
+      // yet (early load / SPA nav); the poll below picks it up quietly.
+      warnedNoBox = true;
+      console.warn("[Gemini Wallpaper] Chatbox not found yet. Tried selectors:", SELECTORS);
+    }
     return chatbox;
   }
+
+  const alive = () => { try { return !!(chrome.runtime && chrome.runtime.id); } catch (_) { return false; } };
 
   function enable() {
     if (dragEnabled) return;
     dragEnabled = true;
     if (!ensureChatbox()) {
-      setTimeout(() => { if (dragEnabled && !chatbox) { dragEnabled = false; enable(); } }, 1000);
+      // Retry quietly until the input appears; stop if the extension was
+      // reloaded (stale content script) so we don't spin/log forever.
+      setTimeout(() => { if (dragEnabled && !chatbox && alive()) { dragEnabled = false; enable(); } }, 1000);
       return;
     }
     createBar();
@@ -479,7 +554,13 @@
     window.addEventListener("scroll", positionOverlays, true);
     window.addEventListener("keydown", onKeyDown, true);
     // Keep the controls stuck to the box even through silent layout reflows.
-    posTimer = setInterval(() => { if (dragEnabled && !moving && !rsDir) positionOverlays(); }, 400);
+    // When it's a pinned window, also re-assert geometry so a stray one-frame
+    // position (e.g. mid-navigation, before layout settles) self-corrects.
+    posTimer = setInterval(() => {
+      if (!dragEnabled || moving || rsDir) return;
+      if (boxDrifted()) startChase();     // caught drifting → smoothly re-pin
+      positionOverlays();
+    }, 400);
   }
 
   function disable() {
@@ -493,6 +574,7 @@
     window.removeEventListener("keydown", onKeyDown, true);
     observer?.disconnect(); observer = null;
     if (posTimer) { clearInterval(posTimer); posTimer = null; }
+    if (chaseRAF) { cancelAnimationFrame(chaseRAF); chaseRAF = 0; }
     if (chatbox) { unbindChatbox(chatbox); clearWindowStyles(); }
     removeBar(); removeHandles(); closePanel();
     winMode = "normal";
@@ -607,7 +689,7 @@
     (s) => {
       scalePct = s.chatboxScale || 100;
       card = { ...CARD_DEFAULTS, ...s.chatboxStyle };
-      if (s.chatboxWin) { winX = s.chatboxWin.x; winY = s.chatboxWin.y; winW = s.chatboxWin.w; winH = s.chatboxWin.h; seeded = true; }
+      if (s.chatboxWin) { winX = s.chatboxWin.x; winY = s.chatboxWin.y; winW = s.chatboxWin.w; winH = s.chatboxWin.h; seeded = true; userPlaced = true; }
       if (s.chatboxDraggable) enable();
     }
   );
@@ -617,7 +699,7 @@
     if ("chatboxDraggable" in changes) changes.chatboxDraggable.newValue ? enable() : disable();
     if ("chatboxScale" in changes) {
       scalePct = changes.chatboxScale.newValue || 100;
-      if (dragEnabled && winMode !== "max") {
+      if (dragEnabled && userPlaced && winMode !== "max") {
         const cx = winX + winW / 2, cy = winY + winH / 2;
         winW = restW * scalePct / 100; winH = restH * scalePct / 100;
         winX = cx - winW / 2; winY = cy - winH / 2;
@@ -630,5 +712,4 @@
     }
   });
 
-  console.log("[Gemini Wallpaper] Chatbox window module loaded.");
 })();
