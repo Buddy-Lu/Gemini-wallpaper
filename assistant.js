@@ -32,14 +32,14 @@
     { img: "wallpaper.png",   name: "Wallpaper",      how: "Set any image as Gemini's background. Open Assistant → wallpaper, or drag & drop / Ctrl+V an image onto the page. Tune dim, blur, brightness and glass tint in Settings." },
     { img: "pet.png",         name: "Pet",            how: "A little animated pet — duck, dog or fox — that wanders the screen. Drag it anywhere and it stays put." },
     { img: "chatbox.png",     name: "Chatbox Window", how: "Turns the input into a real window: 🔴 minimize to a chat chip, 🟡 restore, 🟢 maximize (Esc to exit). Drag the title bar to move, drag the edges to resize." },
-    { img: "font.png",        name: "Word Font",      how: "Choose custom chat + CJK fonts from the toolbar popup." },
+    { img: "font.png",        name: "Word Font",      how: "Open Assistant → word font to pick a Latin and a 中文 (Traditional Chinese) font for chat text. Changes apply instantly." },
     { img: "highlighter.png", name: "Highlighter",    how: "Highlight text in a chat; the highlight re-anchors to the right words even after Gemini re-renders." },
     { img: "notes.png",       name: "Sticky Notes",   how: "Hit + Note, select some text, and a draggable note is linked to it with an arrow — pick the arrow colour." },
     { img: "bulk.png",        name: "Bulk Delete",    how: "Adds checkboxes to sidebar chats (recent and foldered). Tick several and delete them in one go." },
     { img: "math.png",        name: "Math Fixer",     how: "Renders LaTeX math in responses with bundled KaTeX." },
     { img: "hide.png",        name: "Hide Chat",      how: "Click the eye next to a message's Fork to collapse that exchange to a slim bar — great for long sessions." },
     { img: "buddy.png",       name: "Thinking Buddy", how: "A cute mascot appears while Gemini is generating, so the wait is less boring." },
-    { img: "theme.png",       name: "Code Theme",     how: "Every code block gets a ⚙ panel: border style, monospace font & size, line numbers, tint, blur and radius." },
+    { img: "theme.png",       name: "Code Theme",     how: "Every code block gets its own ⚙ panel — style each block independently (border, monospace font & size, line numbers, tint, blur, radius), or hit \"Apply to all\" to make one look the default." },
     { icon: "🔮",             name: "Assistant",      how: "This orb! Drag it to any edge; tap to open the menu. Hover an icon to read what it does, tap to toggle it on." },
   ];
 
@@ -49,13 +49,13 @@
     { id: "enabled",           img: "wallpaper.png", label: "wallpaper",    kind: "wallpaper", intro: "Set a custom background — drag & drop, choose a file, or paste an image." },
     { id: "petEnabled",        img: "pet.png",       label: "pet",          kind: "pet",       intro: "A tiny animated pet that wanders the screen. Pick duck, dog or fox." },
     { id: "chatboxDraggable",  img: "chatbox.png",   label: "chatbox",      kind: "toggle",    intro: "Turn the input into a draggable, resizable window with traffic-light controls." },
-    { id: "font",              img: "font.png",      label: "word font",    kind: "info",      intro: "Custom chat + CJK fonts, set from the toolbar popup." },
+    { id: "font",              img: "font.png",      label: "word font",    kind: "font",      intro: "Pick a custom Latin + 中文 font for chat text — changes apply instantly." },
     { id: "about",             img: "about.png",     label: "about",        kind: "about",     intro: "About Gemini Wallpaper." },
     { id: "annotate",          img: "highlighter.png", label: "highlighter", kind: "info",      intro: "Highlight text in a chat; the highlight re-anchors even after Gemini re-renders." },
     { id: "notesEnabled",      img: "notes.png",     label: "sticky notes", kind: "toggle",    intro: "Notes linked by an arrow to highlighted text in a chat." },
     { id: "bulkDeleteEnabled", img: "bulk.png",      label: "bulk delete",  kind: "toggle",    intro: "Checkboxes on sidebar chats to delete many at once." },
     { id: "math",              img: "math.png",      label: "math fixer",   kind: "info",      intro: "Renders LaTeX math in responses via bundled KaTeX." },
-    { id: "code",              img: "theme.png",     label: "code theme",   kind: "info",      intro: "Give each code block its own look — click the ⚙ on a block: border style, mono font & size, line numbers, tint, blur, radius." },
+    { id: "code",              img: "theme.png",     label: "code theme",   kind: "info",      intro: "Give each code block its OWN look — click the ⚙ on a block to style just that one (border, mono font & size, line numbers, tint, blur, radius). \"Apply to all\" sets a default." },
     { id: "hideChatEnabled",   img: "hide.png",      label: "Hide Chat",    kind: "toggle",    intro: "Collapse any exchange to a slim bar to tidy up long sessions." },
     { id: "thinkingBuddy",     img: "buddy.png",     label: "think buddy",  kind: "toggle",    intro: "A cute mascot that pops up while Gemini is thinking." },
   ];
@@ -72,6 +72,17 @@
     { key: "glassOpacity",   label: "Glass",  min: 0,  max: 100, def: 45,  unit: "%" },
   ];
   const PETS = [["duck", "Duck"], ["dog", "Dog"], ["fox", "Fox"]];
+
+  // Font choices — mirror the toolbar popup exactly (value → button label).
+  // content.js watches chatFont / cjkFont and applies them live.
+  const LATIN_FONTS = [
+    ["", "Default"], ["Inter", "Inter"], ["Merriweather", "Merriweather"],
+    ["JetBrains Mono", "JB Mono"], ["Nunito", "Nunito"],
+  ];
+  const CJK_FONTS = [
+    ["", "預設"], ["Noto Serif TC", "思源宋"], ["Noto Sans TC", "思源黑"],
+    ["LXGW WenKai TC", "文楷"], ["Zen Old Mincho", "明朝"], ["Zen Maru Gothic", "圓黑"],
+  ];
 
   let ball = null, glass = null, menu = null, backdrop = null, intro = null;
   let x = 24, y = 200;
@@ -193,6 +204,18 @@
         background: rgba(255,255,255,.06); color:#dfe4f7; font-size:12px; font-weight:600; cursor:pointer; transition: all .15s;
       }
       #gwp-as-menu .gwp-as-seg button.on { background: linear-gradient(160deg,#6aa0ff,#7a5cff); border-color: transparent; box-shadow: 0 5px 14px rgba(90,120,255,.4); }
+
+      /* word-font pickers — wrapping chip rows */
+      #gwp-as-menu .gwp-as-fld { margin: 12px 4px; }
+      #gwp-as-menu .gwp-as-fld > .lab { display:block; font-size: 11px; opacity: .8; margin-bottom: 7px; }
+      #gwp-as-menu .gwp-as-chips { display:flex; flex-wrap:wrap; gap: 6px; }
+      #gwp-as-menu .gwp-as-chip {
+        padding: 6px 11px; border-radius: 11px; border: 1px solid rgba(255,255,255,.12);
+        background: rgba(255,255,255,.06); color: #dfe4f7; font-size: 12px; font-weight: 600;
+        cursor: pointer; transition: all .15s;
+      }
+      #gwp-as-menu .gwp-as-chip:hover { background: rgba(255,255,255,.14); }
+      #gwp-as-menu .gwp-as-chip.on { background: linear-gradient(160deg,#6aa0ff,#7a5cff); border-color: transparent; box-shadow: 0 5px 14px rgba(90,120,255,.4); }
       #gwp-as-menu .gwp-as-tint { display:flex; align-items:center; gap:10px; margin: 10px 4px; font-size:11px; opacity:.85; }
       #gwp-as-menu input[type=color] { width:26px; height:22px; border:none; border-radius:5px; background:none; cursor:pointer; padding:0; }
       #gwp-as-menu .gwp-as-note { font-size:11px; opacity:.7; line-height:1.5; margin: 6px 6px 2px; }
@@ -245,6 +268,10 @@
   // ── Ball ──────────────────────────────────────────────────
   function createBall() {
     if (ball) return;
+    // Clear anything left by a previous content-script instance (e.g. after an
+    // unpacked-extension reload) so we never stack a dead ball or an orphaned
+    // click-blocking backdrop over the fresh one.
+    document.querySelectorAll("#gwp-as-ball, #gwp-as-backdrop, #gwp-as-menu").forEach((el) => el.remove());
     injectStyle();
     ball = document.createElement("div");
     ball.id = "gwp-as-ball";
@@ -279,6 +306,7 @@
   // ── Drag / tap ────────────────────────────────────────────
   function onDown(e) {
     if (e.button != null && e.button !== 0) return;
+    if (dragging) onUp();            // recover from a lost pointerup
     e.preventDefault();
     wake();
     dragging = true; moved = false;
@@ -286,9 +314,10 @@
     const r = ball.getBoundingClientRect();
     offX = e.clientX - r.left; offY = e.clientY - r.top;
     ball.classList.add("gwp-as-dragging");
-    ball.setPointerCapture?.(e.pointerId);
+    try { ball.setPointerCapture?.(e.pointerId); } catch (_) {}
     window.addEventListener("pointermove", onMove, true);
     window.addEventListener("pointerup", onUp, true);
+    window.addEventListener("pointercancel", onUp, true);
   }
   function onMove(e) {
     if (!dragging) return;
@@ -302,6 +331,7 @@
     ball.classList.remove("gwp-as-dragging");
     window.removeEventListener("pointermove", onMove, true);
     window.removeEventListener("pointerup", onUp, true);
+    window.removeEventListener("pointercancel", onUp, true);
     if (moved) {
       const cx = x + SIZE / 2;
       x = cx < window.innerWidth / 2 ? EDGE : window.innerWidth - SIZE - EDGE;
@@ -314,9 +344,19 @@
   }
 
   // ── Menu shell ────────────────────────────────────────────
-  function toggleMenu() { menuOpen ? closeMenu() : openMenu(); }
+  // Toggle off the live DOM, not the (potentially stale) menuOpen flag.
+  function toggleMenu() {
+    if (document.getElementById("gwp-as-menu") || document.getElementById("gwp-as-backdrop")) closeMenu();
+    else openMenu();
+  }
+  // Remove any orphaned menu/backdrop nodes left behind by a torn-down render.
+  function purgeMenu() {
+    document.querySelectorAll("#gwp-as-backdrop, #gwp-as-menu").forEach((el) => el.remove());
+    menu = null; backdrop = null; intro = null;
+  }
   function openMenu() {
     if (!ball) return;
+    purgeMenu();
     menuOpen = true; view = "home"; wake(); ball.classList.remove("gwp-as-idle");
     backdrop = document.createElement("div");
     backdrop.id = "gwp-as-backdrop";
@@ -325,17 +365,24 @@
     menu = document.createElement("div");
     menu.id = "gwp-as-menu";
     document.body.appendChild(menu);
-    renderMenu();
-    requestAnimationFrame(() => { backdrop.classList.add("gwp-as-show"); menu.classList.add("gwp-as-open"); });
+    try {
+      renderMenu();
+    } catch (err) {
+      // A failed render must never leave an invisible click-blocking backdrop.
+      closeMenu(true);
+      return;
+    }
+    const bd = backdrop, mn = menu;
+    requestAnimationFrame(() => { bd && bd.classList.add("gwp-as-show"); mn && mn.classList.add("gwp-as-open"); });
   }
   function closeMenu(immediate) {
     menuOpen = false;
     const m = menu, b = backdrop;
     menu = null; backdrop = null; intro = null;
-    if (!m) return;
-    if (immediate) { m.remove(); b?.remove(); armIdle(); return; }
-    m.classList.remove("gwp-as-open"); b?.classList.remove("gwp-as-show");
-    setTimeout(() => { m.remove(); b?.remove(); }, 260);
+    if (!m && !b) return;
+    if (immediate) { m?.remove(); b?.remove(); armIdle(); return; }
+    m?.classList.remove("gwp-as-open"); b?.classList.remove("gwp-as-show");
+    setTimeout(() => { m?.remove(); b?.remove(); }, 260);
     armIdle();
   }
   function positionMenu() {
@@ -358,6 +405,7 @@
     else if (view === "settings") renderSettings();
     else if (view === "wallpaper") renderWallpaper();
     else if (view === "pet") renderPet();
+    else if (view === "font") renderFont();
     else if (view === "about") renderAbout();
     else if (view === "info") renderInfo();
     positionMenu();
@@ -437,6 +485,7 @@
     }
     if (it.kind === "wallpaper") { view = "wallpaper"; renderMenu(); return; }
     if (it.kind === "pet")      { view = "pet"; renderMenu(); return; }
+    if (it.kind === "font")     { view = "font"; renderMenu(); return; }
     if (it.kind === "about")    { view = "about"; renderMenu(); return; }
     if (it.kind === "info")     { infoItem = it; view = "info"; renderMenu(); return; }
   }
@@ -498,6 +547,42 @@
     menu.appendChild(seg);
     const note = document.createElement("div");
     note.className = "gwp-as-note"; note.textContent = "Drag the pet anywhere — it stays where you drop it.";
+    menu.appendChild(note);
+  }
+
+  // ── Word-font sub-panel ───────────────────────────────────
+  function fontGroup(labelText, key, options) {
+    const fld = document.createElement("div");
+    fld.className = "gwp-as-fld";
+    const lab = document.createElement("span");
+    lab.className = "lab"; lab.textContent = labelText;
+    fld.appendChild(lab);
+    const chips = document.createElement("div");
+    chips.className = "gwp-as-chips";
+    options.forEach(([val, txt]) => {
+      const b = document.createElement("button");
+      b.className = "gwp-as-chip" + ((state[key] || "") === val ? " on" : "");
+      b.textContent = txt;
+      if (val) b.style.fontFamily = `'${val}'`;   // preview once the font is loaded
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        state[key] = val;
+        chrome.storage.local.set({ [key]: val });
+        chips.querySelectorAll("button").forEach((z) => z.classList.remove("on"));
+        b.classList.add("on");
+      });
+      chips.appendChild(b);
+    });
+    fld.appendChild(chips);
+    return fld;
+  }
+  function renderFont() {
+    menu.appendChild(header("word font", true));
+    menu.appendChild(fontGroup("Latin font", "chatFont", LATIN_FONTS));
+    menu.appendChild(fontGroup("中文字體", "cjkFont", CJK_FONTS));
+    const note = document.createElement("div");
+    note.className = "gwp-as-note";
+    note.textContent = "Applies to chat text instantly. Latin is used first, Chinese fills in for 中文 characters.";
     menu.appendChild(note);
   }
 
@@ -615,7 +700,7 @@
     }
   }
 
-  const DEFAULTS = { petType: "duck", glassColor: "#000000", [KEY_POS]: null, [KEY_ON]: false };
+  const DEFAULTS = { petType: "duck", glassColor: "#000000", chatFont: "", cjkFont: "", [KEY_POS]: null, [KEY_ON]: false };
   ON_KEYS.forEach((k) => (DEFAULTS[k] = k === "enabled" || k === "thinkingBuddy" || k === "hideChatEnabled"));
   SLIDERS.forEach((sl) => (DEFAULTS[sl.key] = sl.toStore ? sl.toStore(sl.def) : sl.def));
 
@@ -635,5 +720,8 @@
 
   window.addEventListener("resize", () => { if (ball) { place(); if (menuOpen) positionMenu(); } });
 
-  console.log("[Gemini Wallpaper] Assistant module loaded.");
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && (document.getElementById("gwp-as-menu") || document.getElementById("gwp-as-backdrop"))) closeMenu();
+  });
+
 })();

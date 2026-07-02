@@ -149,6 +149,7 @@
   const FONT_TARGETS = [
     "model-response", "user-query", "message-content",
     ".model-response-text", "response-container",
+    ".gds-display-m",   // zero-state welcome greeting title ("…我們進入正題吧！")
   ].join(", ");
 
   const GOOGLE_FONTS = {
@@ -252,5 +253,4 @@
   loadSettings();
   startObserver();
 
-  console.log("[Gemini Wallpaper] Extension loaded.");
 })();
