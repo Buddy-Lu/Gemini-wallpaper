@@ -1,0 +1,64 @@
+/* 
+ * Gemini Wallpaper - Content Styles
+ * These get injected directly into gemini.google.com
+ *
+ * Gemini's background is controlled by several layered elements.
+ * We target the broadest selectors possible since class names are 
+ * obfuscated and can change between deployments.
+ */
+
+/* The wallpaper layer - injected by content.js */
+#gemini-wallpaper-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: opacity 0.4s ease;
+}
+
+/* Gemini's input bottom-strip container used to be a thin gradient (via ::before)
+   but the 2026 redesign moved a solid #0f0f0f background onto input-container
+   itself — that paints a ~113px black band hiding the wallpaper. Clear both. */
+input-container,
+input-container::before {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+/* Glass surfaces — backdrop blur is fixed; color/opacity injected dynamically by content.js.
+   Stick to custom-element tag names — class selectors like .input-area can match
+   too-broad wrappers and tint half the page. */
+bard-sidenav,
+gemini-sidenav,
+input-area-v2,
+input-area-v3,
+input-area-v4,
+.user-query-bubble-with-background {
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  transition: background-color 0.3s ease !important;
+}
+
+.blur-bg,
+.autosuggest-scrim {
+  background-color: transparent !important;
+}
+
+/* Dim overlay on top of wallpaper for readability */
+#gemini-wallpaper-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.5);
+  transition: background 0.4s ease;
+}

@@ -8,28 +8,28 @@
   "content_scripts": [
     {
       "matches": ["https://gemini.google.com/*"],
-      "js": ["guard.js", "katex/katex.min.js", "katex-fonts.js", "content.js", "pet.js", "annotations.js", "math.js", "chatbox-drag.js", "code-style.js", "linked-notes.js", "thinking-buddy.js", "bulk-delete.js", "hide-chat.js", "assistant.js"],
-      "css": ["katex/katex.min.css", "content.css"],
+      "js": ["src/content/guard.js", "vendor/katex/katex.min.js", "vendor/katex-fonts.js", "src/content/content.js", "src/content/pet.js", "src/content/annotations.js", "src/content/math.js", "src/content/chatbox-drag.js", "src/content/code-style.js", "src/content/linked-notes.js", "src/content/thinking-buddy.js", "src/content/bulk-delete.js", "src/content/hide-chat.js", "src/content/assistant.js"],
+      "css": ["vendor/katex/katex.min.css", "src/styles/content.css"],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["katex/fonts/*", "icons/assistant/*"],
+      "resources": ["vendor/katex/fonts/*", "assets/icons/assistant/*"],
       "matches": ["https://gemini.google.com/*"]
     }
   ],
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "src/popup/popup.html",
     "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
+      "16": "assets/icons/icon16.png",
+      "48": "assets/icons/icon48.png",
+      "128": "assets/icons/icon128.png"
     }
   },
   "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "16": "assets/icons/icon16.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
   }
 }
