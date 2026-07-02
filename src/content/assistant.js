@@ -29,7 +29,7 @@
 
   // README content for the About page — every feature + how to use it.
   const README = [
-    { img: "wallpaper.png",   name: "Wallpaper",      how: "Set any image as Gemini's background. Open Assistant → wallpaper, or drag & drop / Ctrl+V an image onto the page. Tune dim, blur, brightness and glass tint in Settings." },
+    { img: "wallpaper.png",   name: "Wallpaper",      how: "Set any image as Gemini's background. Open Assistant → wallpaper to choose a file and its quality, then tune dim, blur, brightness and glass tint in Settings." },
     { img: "pet.png",         name: "Pet",            how: "A little animated pet — duck, dog or fox — that wanders the screen. Drag it anywhere and it stays put." },
     { img: "chatbox.png",     name: "Chatbox Window", how: "Turns the input into a real window: 🔴 minimize to a chat chip, 🟡 restore, 🟢 maximize (Esc to exit). Drag the title bar to move, drag the edges to resize." },
     { img: "font.png",        name: "Word Font",      how: "Open Assistant → word font to pick a Latin and a 中文 (Traditional Chinese) font for chat text. Changes apply instantly." },
@@ -46,9 +46,9 @@
   // Grid icons — order fixed to the guide. kind: toggle | wallpaper | pet | about | info
   // `img` = bundled PNG; `icon` = emoji fallback where no PNG was provided.
   const ITEMS = [
-    { id: "enabled",           img: "wallpaper.png", label: "wallpaper",    kind: "wallpaper", intro: "Set a custom background — drag & drop, choose a file, or paste an image." },
+    { id: "enabled",           img: "wallpaper.png", label: "wallpaper",    kind: "wallpaper", intro: "Set a custom background image, pick its quality, and preview it." },
     { id: "petEnabled",        img: "pet.png",       label: "pet",          kind: "pet",       intro: "A tiny animated pet that wanders the screen. Pick duck, dog or fox." },
-    { id: "chatboxDraggable",  img: "chatbox.png",   label: "chatbox",      kind: "toggle",    intro: "Turn the input into a draggable, resizable window with traffic-light controls." },
+    { id: "chatboxDraggable",  img: "chatbox.png",   label: "chatbox",      kind: "chatbox",   intro: "Turn the input into a draggable, resizable window with traffic-light controls." },
     { id: "font",              img: "font.png",      label: "word font",    kind: "font",      intro: "Pick a custom Latin + 中文 font for chat text — changes apply instantly." },
     { id: "about",             img: "about.png",     label: "about",        kind: "about",     intro: "About Gemini Wallpaper." },
     { id: "annotate",          img: "highlighter.png", label: "highlighter", kind: "info",      intro: "Highlight text in a chat; the highlight re-anchors even after Gemini re-renders." },
@@ -72,6 +72,16 @@
     { key: "glassOpacity",   label: "Glass",  min: 0,  max: 100, def: 45,  unit: "%" },
   ];
   const PETS = [["duck", "Duck"], ["dog", "Dog"], ["fox", "Fox"]];
+
+  // Image-quality presets — applied at upload time (mirrors the popup). Higher
+  // quality keeps more pixels but stores a bigger base64 blob.
+  const QUALITY_PRESETS = {
+    low:      { maxW: 1280, jpegQ: 0.75 },
+    medium:   { maxW: 1920, jpegQ: 0.85 },
+    high:     { maxW: 2560, jpegQ: 0.92 },
+    original: null,   // raw file bytes, no re-encode (preserves transparency)
+  };
+  const QUALITY = [["low", "Low"], ["medium", "Medium"], ["high", "High"], ["original", "Original"]];
 
   // Font choices — mirror the toolbar popup exactly (value → button label).
   // content.js watches chatFont / cjkFont and applies them live.
@@ -204,6 +214,19 @@
         background: rgba(255,255,255,.06); color:#dfe4f7; font-size:12px; font-weight:600; cursor:pointer; transition: all .15s;
       }
       #gwp-as-menu .gwp-as-seg button.on { background: linear-gradient(160deg,#6aa0ff,#7a5cff); border-color: transparent; box-shadow: 0 5px 14px rgba(90,120,255,.4); }
+      #gwp-as-menu .gwp-as-seg.wrap { flex-wrap: wrap; }
+      #gwp-as-menu .gwp-as-seg.wrap button { flex: 1 0 40px; }
+
+      /* Wallpaper preview thumbnail */
+      #gwp-as-menu .gwp-as-preview {
+        height: 92px; border-radius: 12px; margin: 10px 4px 4px;
+        background-size: cover; background-position: center;
+        border: 1px solid rgba(255,255,255,.14); box-shadow: inset 0 1px 3px rgba(0,0,0,.4);
+      }
+      #gwp-as-menu .gwp-as-preview.empty { background: rgba(255,255,255,.05); }
+      /* danger button (reset) */
+      #gwp-as-menu .gwp-as-btn.danger:hover { background: rgba(255,90,90,.35); }
+      #gwp-as-menu .gwp-as-btn.armed { background: rgba(255,90,90,.4); color: #ffe1e1; }
 
       /* word-font pickers — wrapping chip rows */
       #gwp-as-menu .gwp-as-fld { margin: 12px 4px; }
@@ -238,23 +261,26 @@
         animation: gwp-as-spin 5s linear infinite, gwp-as-hue 2.4s ease-in-out infinite, gwp-as-breathe 3.6s ease-in-out infinite;
       }
 
-      /* README / About page */
-      #gwp-as-menu .gwp-as-doc { max-height: 340px; overflow-y: auto; padding: 2px 4px 2px 2px; scrollbar-width: thin; }
+      /* README / About page — widened so text isn't cramped. */
+      #gwp-as-menu.gwp-as-wide { width: 400px; }
+      #gwp-as-menu .gwp-as-doc { max-height: 62vh; overflow-y: auto; padding: 2px 6px 2px 4px; scrollbar-width: thin; }
       #gwp-as-menu .gwp-as-doc::-webkit-scrollbar { width: 6px; }
       #gwp-as-menu .gwp-as-doc::-webkit-scrollbar-thumb { background: rgba(255,255,255,.2); border-radius: 3px; }
-      #gwp-as-menu .gwp-as-tagline { text-align:center; font-size:11px; opacity:.75; line-height:1.45; margin: 0 6px 10px; }
+      #gwp-as-menu .gwp-as-about-intro { font-size:12px; opacity:.82; line-height:1.62; margin: 4px 8px 12px; }
+      #gwp-as-menu .gwp-as-about-intro p { margin: 0 0 9px; }
+      #gwp-as-menu .gwp-as-about-intro p:last-child { margin-bottom: 0; }
       #gwp-as-menu .gwp-as-gh {
         display:flex; align-items:center; justify-content:center; gap:8px; text-decoration:none;
         margin: 2px 2px 8px; padding:10px; border-radius:12px; color:#eef1ff; font-size:12px; font-weight:600;
         background: linear-gradient(160deg,#3a3f52,#22252f); border:1px solid rgba(255,255,255,.14); transition: filter .15s;
       }
       #gwp-as-menu .gwp-as-gh:hover { filter: brightness(1.2); }
-      #gwp-as-menu .gwp-as-seclbl { font-size:10px; letter-spacing:1px; text-transform:uppercase; opacity:.5; margin: 8px 4px 4px; }
-      #gwp-as-menu .gwp-as-feat { display:flex; gap:10px; align-items:flex-start; margin: 9px 3px; }
-      #gwp-as-menu .gwp-as-feat .fic { flex:0 0 34px; width:34px; height:34px; border-radius:10px; background:#f1f3fa; display:flex; align-items:center; justify-content:center; font-size:18px; }
+      #gwp-as-menu .gwp-as-seclbl { font-size:10px; letter-spacing:1px; text-transform:uppercase; opacity:.5; margin: 10px 4px 6px; }
+      #gwp-as-menu .gwp-as-feat { display:flex; gap:12px; align-items:flex-start; margin: 12px 3px; }
+      #gwp-as-menu .gwp-as-feat .fic { flex:0 0 36px; width:36px; height:36px; border-radius:10px; background:#f1f3fa; display:flex; align-items:center; justify-content:center; font-size:18px; }
       #gwp-as-menu .gwp-as-feat .fic img { width:22px; height:22px; object-fit:contain; }
-      #gwp-as-menu .gwp-as-feat .ftx b { font-size:12px; display:block; margin-bottom:2px; }
-      #gwp-as-menu .gwp-as-feat .ftx span { font-size:11px; opacity:.78; line-height:1.42; }
+      #gwp-as-menu .gwp-as-feat .ftx b { font-size:12.5px; display:block; margin-bottom:3px; }
+      #gwp-as-menu .gwp-as-feat .ftx span { font-size:11.5px; opacity:.8; line-height:1.52; }
       #gwp-as-menu .gwp-as-share { text-align:center; font-size:11px; opacity:.8; line-height:1.5; margin: 12px 6px 4px; }
       #gwp-as-menu .gwp-as-copy {
         margin: 6px auto 2px; display:block; border:none; border-radius:20px; padding:7px 18px; cursor:pointer;
@@ -387,7 +413,7 @@
   }
   function positionMenu() {
     if (!menu) return;
-    const bw = 270, gap = 12;
+    const bw = menu.offsetWidth || 270, gap = 12;
     const r = ball.getBoundingClientRect();
     const openLeft = r.left + SIZE / 2 > window.innerWidth / 2;
     let left = openLeft ? r.left - bw - gap : r.right + gap;
@@ -401,9 +427,12 @@
   function renderMenu() {
     if (!menu) return;
     menu.innerHTML = "";
+    // The About page needs room to breathe; every other view stays compact.
+    menu.classList.toggle("gwp-as-wide", view === "about");
     if (view === "home") renderHome();
     else if (view === "settings") renderSettings();
     else if (view === "wallpaper") renderWallpaper();
+    else if (view === "chatbox") renderChatbox();
     else if (view === "pet") renderPet();
     else if (view === "font") renderFont();
     else if (view === "about") renderAbout();
@@ -484,6 +513,7 @@
       return;
     }
     if (it.kind === "wallpaper") { view = "wallpaper"; renderMenu(); return; }
+    if (it.kind === "chatbox")  { view = "chatbox"; renderMenu(); return; }
     if (it.kind === "pet")      { view = "pet"; renderMenu(); return; }
     if (it.kind === "font")     { view = "font"; renderMenu(); return; }
     if (it.kind === "about")    { view = "about"; renderMenu(); return; }
@@ -506,22 +536,96 @@
   function renderWallpaper() {
     menu.appendChild(header("wallpaper", true));
     menu.appendChild(switchRow("Show wallpaper", "enabled"));
+
+    // Preview of the current wallpaper.
+    const prev = document.createElement("div");
+    prev.className = "gwp-as-preview" + (state.imageData ? "" : " empty");
+    if (state.imageData) prev.style.backgroundImage = `url("${state.imageData}")`;
+    menu.appendChild(prev);
+
     const up = document.createElement("button");
     up.className = "gwp-as-btn"; up.textContent = "🖼  Choose image…";
     const file = document.createElement("input");
     file.type = "file"; file.accept = "image/*"; file.style.display = "none";
     file.addEventListener("change", () => {
       const f = file.files && file.files[0];
-      if (!f) return;
-      const reader = new FileReader();
-      reader.onload = () => { chrome.storage.local.set({ imageData: reader.result, enabled: true }); state.enabled = true; view = "home"; renderMenu(); };
-      reader.readAsDataURL(f);
+      file.value = "";                       // let the same file re-fire change
+      if (f) processFile(f, prev);
     });
     up.addEventListener("click", (e) => { e.stopPropagation(); file.click(); });
     menu.appendChild(up); menu.appendChild(file);
+
+    // Image-quality picker — applied on the next upload.
+    const qlab = document.createElement("div");
+    qlab.className = "gwp-as-seclbl"; qlab.textContent = "Image quality";
+    menu.appendChild(qlab);
+    const seg = document.createElement("div");
+    seg.className = "gwp-as-seg wrap";
+    QUALITY.forEach(([val, txt]) => {
+      const b = document.createElement("button");
+      b.textContent = txt;
+      if ((state.imageQuality || "medium") === val) b.classList.add("on");
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        state.imageQuality = val;
+        chrome.storage.local.set({ imageQuality: val });
+        seg.querySelectorAll("button").forEach((z) => z.classList.remove("on"));
+        b.classList.add("on");
+      });
+      seg.appendChild(b);
+    });
+    menu.appendChild(seg);
+
     const note = document.createElement("div");
     note.className = "gwp-as-note";
-    note.textContent = "You can also drag & drop an image onto the page, or press Ctrl+V to paste one.";
+    note.textContent = "Pick an image and it applies right away. Higher quality is sharper but stored larger.";
+    menu.appendChild(note);
+  }
+
+  // Downscale + re-encode per the chosen quality, then store and preview.
+  async function processFile(fileObj, prevEl) {
+    if (!fileObj || !fileObj.type.startsWith("image/")) return;
+    if (fileObj.size > 15 * 1024 * 1024) return;      // 15 MB guard
+    const q = state.imageQuality || "medium";
+    const preset = QUALITY_PRESETS.hasOwnProperty(q) ? QUALITY_PRESETS[q] : QUALITY_PRESETS.medium;
+    let dataUrl;
+    try {
+      if (preset === null) {
+        dataUrl = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.result); r.onerror = () => rej(r.error);
+          r.readAsDataURL(fileObj);
+        });
+      } else {
+        const objectUrl = URL.createObjectURL(fileObj);
+        try {
+          const img = new Image();
+          await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = objectUrl; });
+          const scale = img.naturalWidth > preset.maxW ? preset.maxW / img.naturalWidth : 1;
+          const w = Math.round(img.naturalWidth * scale);
+          const h = Math.round(img.naturalHeight * scale);
+          const bitmap = await createImageBitmap(fileObj, { resizeWidth: w, resizeHeight: h, resizeQuality: "high" });
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(bitmap, 0, 0);
+          bitmap.close();
+          dataUrl = canvas.toDataURL("image/jpeg", preset.jpegQ);
+        } finally { URL.revokeObjectURL(objectUrl); }
+      }
+    } catch (_) { return; }
+    state.imageData = dataUrl; state.enabled = true;
+    chrome.storage.local.set({ imageData: dataUrl, enabled: true });
+    if (prevEl) { prevEl.style.backgroundImage = `url("${dataUrl}")`; prevEl.classList.remove("empty"); }
+  }
+
+  // ── Chatbox sub-panel ─────────────────────────────────────
+  function renderChatbox() {
+    menu.appendChild(header("chatbox", true));
+    menu.appendChild(switchRow("Chatbox window", "chatboxDraggable"));
+    menu.appendChild(sliderRow({ key: "chatboxScale", label: "Scale", min: 50, max: 150, step: 5, unit: "%" }));
+    const note = document.createElement("div");
+    note.className = "gwp-as-note";
+    note.textContent = "Turns the input into a window: 🔴 minimize · 🟡 restore · 🟢 maximize (Esc to exit). Drag the title bar to move, the edges to resize.";
     menu.appendChild(note);
   }
 
@@ -586,37 +690,124 @@
     menu.appendChild(note);
   }
 
+  // Build one labelled slider row. sl: { key, label, min, max, unit, step?,
+  // toUi?, toStore? }. Shared by the settings and chatbox panels.
+  function sliderRow(sl) {
+    const raw = state[sl.key];
+    const uiVal = sl.toUi ? sl.toUi(raw) : raw;
+    const row = document.createElement("div");
+    row.className = "gwp-as-row";
+    const lab = document.createElement("label"); lab.textContent = sl.label;
+    const range = document.createElement("input");
+    range.type = "range"; range.min = sl.min; range.max = sl.max; range.value = uiVal;
+    if (sl.step) range.step = sl.step;
+    const val = document.createElement("span"); val.className = "gwp-as-val"; val.textContent = uiVal + sl.unit;
+    range.addEventListener("input", (e) => {
+      e.stopPropagation();
+      const ui = parseInt(range.value, 10);
+      val.textContent = ui + sl.unit;
+      const store = sl.toStore ? sl.toStore(ui) : ui;
+      state[sl.key] = store;
+      chrome.storage.local.set({ [sl.key]: store });
+    });
+    row.appendChild(lab); row.appendChild(range); row.appendChild(val);
+    return row;
+  }
+
+  // Sample the current wallpaper and pick its dominant color (weighted toward
+  // saturated pixels, away from near-black/near-white). Mirrors the popup.
+  function dominantColor(img) {
+    const MAX = 64;
+    const scale = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+    const { data } = ctx.getImageData(0, 0, w, h);
+    const buckets = new Map();
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+      if (a < 125) continue;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      const sat = max === 0 ? 0 : (max - min) / max;
+      const lum = (max + min) / 2;
+      let weight = 1 + sat * 3;
+      if (lum < 18 || lum > 240) weight *= 0.15;
+      const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+      let e = buckets.get(key);
+      if (!e) { e = { r: 0, g: 0, b: 0, w: 0 }; buckets.set(key, e); }
+      e.r += r * weight; e.g += g * weight; e.b += b * weight; e.w += weight;
+    }
+    let best = null;
+    for (const e of buckets.values()) if (!best || e.w > best.w) best = e;
+    if (!best) return null;
+    const to = (n) => Math.round(n).toString(16).padStart(2, "0");
+    return "#" + to(best.r / best.w) + to(best.g / best.w) + to(best.b / best.w);
+  }
+
+  function autoTint(colorInput) {
+    if (!state.imageData) return;
+    const img = new Image();
+    img.onload = () => {
+      const hex = dominantColor(img);
+      if (!hex) return;
+      if (colorInput) colorInput.value = hex;
+      state.glassColor = hex;
+      chrome.storage.local.set({ glassColor: hex });
+    };
+    img.src = state.imageData;
+  }
+
+  // Reset everything to defaults but keep the orb alive (its on-state and
+  // position), so the panel you're standing in doesn't vanish mid-reset.
+  function resetAll() {
+    chrome.storage.local.get(null, (all) => {
+      const drop = Object.keys(all).filter((k) => k !== KEY_ON && k !== KEY_POS);
+      chrome.storage.local.remove(drop, () => {
+        const seed = {};
+        Object.keys(DEFAULTS).forEach((k) => { if (k !== KEY_ON && k !== KEY_POS) seed[k] = DEFAULTS[k]; });
+        chrome.storage.local.set(seed, () => {
+          Object.assign(state, seed);
+          view = "home"; renderMenu();
+        });
+      });
+    });
+  }
+
   // ── Settings sub-panel ────────────────────────────────────
   function renderSettings() {
     menu.appendChild(header("settings", true));
-    SLIDERS.forEach((sl) => {
-      const raw = state[sl.key];
-      const uiVal = sl.toUi ? sl.toUi(raw) : raw;
-      const row = document.createElement("div");
-      row.className = "gwp-as-row";
-      const lab = document.createElement("label"); lab.textContent = sl.label;
-      const range = document.createElement("input");
-      range.type = "range"; range.min = sl.min; range.max = sl.max; range.value = uiVal;
-      const val = document.createElement("span"); val.className = "gwp-as-val"; val.textContent = uiVal + sl.unit;
-      range.addEventListener("input", (e) => {
-        e.stopPropagation();
-        const ui = parseInt(range.value, 10);
-        val.textContent = ui + sl.unit;
-        const store = sl.toStore ? sl.toStore(ui) : ui;
-        state[sl.key] = store;
-        chrome.storage.local.set({ [sl.key]: store });
-      });
-      row.appendChild(lab); row.appendChild(range); row.appendChild(val);
-      menu.appendChild(row);
-    });
+    SLIDERS.forEach((sl) => menu.appendChild(sliderRow(sl)));
+
     const tint = document.createElement("div");
     tint.className = "gwp-as-tint";
     const tlab = document.createElement("span"); tlab.textContent = "Glass tint"; tlab.style.flex = "1";
     const color = document.createElement("input");
     color.type = "color"; color.value = state.glassColor || "#000000";
     color.addEventListener("input", (e) => { e.stopPropagation(); state.glassColor = color.value; chrome.storage.local.set({ glassColor: color.value }); });
-    tint.appendChild(tlab); tint.appendChild(color);
+    const auto = document.createElement("button");
+    auto.className = "gwp-as-chip"; auto.textContent = "Auto"; auto.title = "Match tint to the wallpaper's colors";
+    auto.addEventListener("click", (e) => { e.stopPropagation(); autoTint(color); });
+    tint.appendChild(tlab); tint.appendChild(auto); tint.appendChild(color);
     menu.appendChild(tint);
+
+    // Reset — two-tap confirm so it can't be hit by accident.
+    const reset = document.createElement("button");
+    reset.className = "gwp-as-btn danger"; reset.textContent = "Reset all settings";
+    let armed = false, armTimer = null;
+    reset.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!armed) {
+        armed = true; reset.classList.add("armed"); reset.textContent = "Tap again to confirm";
+        armTimer = setTimeout(() => { armed = false; reset.classList.remove("armed"); reset.textContent = "Reset all settings"; }, 2600);
+        return;
+      }
+      clearTimeout(armTimer);
+      resetAll();
+    });
+    menu.appendChild(reset);
   }
 
   // ── About + generic info ──────────────────────────────────
@@ -631,10 +822,13 @@
     hero.innerHTML = `<div class="gwp-as-hero-orb"></div><div style="font-weight:700;font-size:15px;">Gemini Wallpaper</div>`;
     doc.appendChild(hero);
 
-    const tag = document.createElement("div");
-    tag.className = "gwp-as-tagline";
-    tag.textContent = "Make Gemini yours — a wallpaper, a pet, a windowed chatbox and a pile of handy powers, all from one floating orb.";
-    doc.appendChild(tag);
+    const intro = document.createElement("div");
+    intro.className = "gwp-as-about-intro";
+    intro.innerHTML =
+      "<p>Gemini is great, but the page is <i>fixed</i> — one background, one look, no place to keep your own marks.</p>" +
+      "<p>This extension hands the page back to you: your wallpaper, your fonts, your glass, plus a set of reading and chat-management tools Gemini doesn't ship. Everything is opt-in, everything persists locally, and nothing ever leaves your browser.</p>" +
+      "<p>Almost every tool is reachable from this one floating orb, so the page stays clean until you want it.</p>";
+    doc.appendChild(intro);
 
     const gh = document.createElement("a");
     gh.className = "gwp-as-gh";
@@ -700,7 +894,7 @@
     }
   }
 
-  const DEFAULTS = { petType: "duck", glassColor: "#000000", chatFont: "", cjkFont: "", [KEY_POS]: null, [KEY_ON]: false };
+  const DEFAULTS = { petType: "duck", glassColor: "#000000", chatFont: "", cjkFont: "", imageData: "", imageQuality: "medium", chatboxScale: 100, [KEY_POS]: null, [KEY_ON]: false };
   ON_KEYS.forEach((k) => (DEFAULTS[k] = k === "enabled" || k === "thinkingBuddy" || k === "hideChatEnabled"));
   SLIDERS.forEach((sl) => (DEFAULTS[sl.key] = sl.toStore ? sl.toStore(sl.def) : sl.def));
 
