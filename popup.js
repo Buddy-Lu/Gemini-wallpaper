@@ -126,7 +126,7 @@ dragToggle.addEventListener("change", () => {
   chrome.storage.local.set({ chatboxDraggable: dragToggle.checked });
 });
 
-// ── Magic ball toggle (independent) ─────────────────────────
+// ── Assistant toggle (independent) ──────────────────────────
 ballToggle.addEventListener("change", () => {
   chrome.storage.local.set({ magicBall: ballToggle.checked });
 });

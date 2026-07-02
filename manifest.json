@@ -8,14 +8,14 @@
   "content_scripts": [
     {
       "matches": ["https://gemini.google.com/*"],
-      "js": ["katex/katex.min.js", "content.js", "pet.js", "annotations.js", "math.js", "chatbox-drag.js", "code-style.js", "linked-notes.js", "thinking-buddy.js", "bulk-delete.js", "hide-chat.js", "magic-ball.js"],
+      "js": ["katex/katex.min.js", "content.js", "pet.js", "annotations.js", "math.js", "chatbox-drag.js", "code-style.js", "linked-notes.js", "thinking-buddy.js", "bulk-delete.js", "hide-chat.js", "assistant.js"],
       "css": ["katex/katex.min.css", "content.css"],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["katex/fonts/*"],
+      "resources": ["katex/fonts/*", "icons/assistant/*"],
       "matches": ["https://gemini.google.com/*"]
     }
   ],
