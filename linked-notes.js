@@ -587,5 +587,4 @@
     if ("notesEnabled" in changes) applyEnabled(changes.notesEnabled.newValue);
   });
 
-  console.log("[Gemini Wallpaper] Linked notes module loaded.");
 })();

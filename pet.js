@@ -280,5 +280,4 @@
     if ("petEnabled" in changes) applyEnabled(changes.petEnabled.newValue);
   });
 
-  console.log("[Gemini Wallpaper] Pet module loaded.");
 })();

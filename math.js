@@ -243,5 +243,4 @@
 
   observer.observe(document.body, OBS_OPTS);
   scan();
-  console.log("[Gemini Wallpaper] Math module loaded (detect + Fix button, cross-node).");
 })();

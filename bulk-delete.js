@@ -362,5 +362,4 @@
     if ("bulkDeleteEnabled" in changes) applyEnabled(changes.bulkDeleteEnabled.newValue);
   });
 
-  console.log("[Gemini Wallpaper] Bulk delete module loaded.");
 })();

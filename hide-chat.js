@@ -200,7 +200,6 @@
     store = s[KEY] && typeof s[KEY] === "object" ? s[KEY] : {};
     applyEnabled(s.hideChatEnabled);
     observer.observe(document.body, { childList: true, subtree: true });
-    console.log("[Gemini Wallpaper] Hide-chat module loaded.");
   });
 
   chrome.storage.onChanged.addListener((changes, area) => {

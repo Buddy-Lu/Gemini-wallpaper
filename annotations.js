@@ -387,5 +387,4 @@
     restoreAll();
   });
 
-  console.log("[Gemini Wallpaper] Annotations loaded.");
 })();

@@ -192,5 +192,4 @@
     if ("thinkingBuddy" in changes) applyEnabled(changes.thinkingBuddy.newValue);
   });
 
-  console.log("[Gemini Wallpaper] Thinking buddy loaded.");
 })();
