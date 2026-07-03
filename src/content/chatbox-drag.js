@@ -687,7 +687,7 @@
 
   // ── Init ──────────────────────────────────────────────────
   chrome.storage.local.get(
-    { chatboxDraggable: false, chatboxScale: 100, chatboxStyle: CARD_DEFAULTS, chatboxWin: null },
+    { chatboxDraggable: true, chatboxScale: 100, chatboxStyle: CARD_DEFAULTS, chatboxWin: null },
     (s) => {
       scalePct = s.chatboxScale || 100;
       card = { ...CARD_DEFAULTS, ...s.chatboxStyle };

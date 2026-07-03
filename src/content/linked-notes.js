@@ -577,7 +577,7 @@
   }, 500);
 
   // ── Init ──────────────────────────────────────────────────
-  chrome.storage.local.get({ [KEY]: [], notesEnabled: false }, (s) => {
+  chrome.storage.local.get({ [KEY]: [], notesEnabled: true }, (s) => {
     notes = Array.isArray(s[KEY]) ? s[KEY] : [];
     applyEnabled(s.notesEnabled);
   });

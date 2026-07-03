@@ -269,7 +269,7 @@
   }
 
   // ── Init ──────────────────────────────────────────────────
-  chrome.storage.local.get({ petEnabled: false, petType: "duck" }, (s) => {
+  chrome.storage.local.get({ petEnabled: true, petType: "duck" }, (s) => {
     applyType(s.petType);
     applyEnabled(s.petEnabled);
   });

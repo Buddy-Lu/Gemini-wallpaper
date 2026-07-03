@@ -1273,7 +1273,7 @@
   const CODE_DEFAULTS = { tintColor: "#0f1020", tintOpacity: 55, blur: 12, border: "solid", radius: 12, font: "", fontSize: 14, lineNumbers: false };
 
   const DEFAULTS = { lang: DEFAULT_LANG, petType: "duck", glassColor: "#000000", chatFont: "", cjkFont: "", imageData: "", imageQuality: "medium", chatboxScale: 100, codeStyle: CODE_DEFAULTS, codeStyleEnabled: true, [KEY_POS]: null, [KEY_ON]: false };
-  ON_KEYS.forEach((k) => (DEFAULTS[k] = k === "enabled" || k === "thinkingBuddy" || k === "hideChatEnabled"));
+  ON_KEYS.forEach((k) => (DEFAULTS[k] = true));   // all features on by default on a fresh install
   SLIDERS.forEach((sl) => (DEFAULTS[sl.key] = sl.toStore ? sl.toStore(sl.def) : sl.def));
 
   chrome.storage.local.get(DEFAULTS, (s) => {

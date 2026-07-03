@@ -356,7 +356,7 @@
   });
 
   // ── Init ──────────────────────────────────────────────────
-  chrome.storage.local.get({ bulkDeleteEnabled: false }, (s) => applyEnabled(s.bulkDeleteEnabled));
+  chrome.storage.local.get({ bulkDeleteEnabled: true }, (s) => applyEnabled(s.bulkDeleteEnabled));
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     if ("bulkDeleteEnabled" in changes) applyEnabled(changes.bulkDeleteEnabled.newValue);
