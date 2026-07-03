@@ -16,6 +16,8 @@ Custom wallpaper · frosted-glass UI · highlights & linked notes · math fix ·
   <img src="https://img.shields.io/badge/dependencies-none-16a34a?style=for-the-badge" alt="No dependencies">
 </p>
 
+<sub><b>English</b> · <a href="README.zh-TW.md">繁體中文</a></sub>
+
 <br>
 
 <img src="docs/img/overview.png" width="94%" alt="Gemini Wallpaper in action — wallpaper, glass UI, notes, highlights, code theme, and a pet">
