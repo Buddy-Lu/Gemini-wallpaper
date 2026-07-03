@@ -2,7 +2,7 @@
 
 <img src="assets/icons/icon128.png" width="96" alt="Gemini Wallpaper logo">
 
-# 🌌 Gemini Wallpaper
+# Gemini Wallpaper
 
 ### _They say beautiful gemini remain hidden if you settle for ordinary tools._ ✨
 
