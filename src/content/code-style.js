@@ -40,6 +40,7 @@
   };
   let s = { ...DEFAULTS };   // default look (un-customized blocks)
   let blocks = {};           // blockId → per-block style override
+  let enabled = true;        // master on/off — when off, blocks look like default Gemini
 
   // Google Fonts slugs for the monospace options.
   const FONT_SLUGS = {
@@ -138,13 +139,35 @@
     document.head.appendChild(l);
   }
 
-  // ── One global <style> for the static bits (bg clears / gutter / gear) ──
+  // ── Gear button styling — ALWAYS present so the on/off toggle stays reachable
+  //    even when block styling is turned off. ──
+  function applyGearStyle() {
+    if (document.getElementById("gwp-code-gear-style")) return;
+    const st = document.createElement("style");
+    st.id = "gwp-code-gear-style";
+    st.textContent = `
+      .gwp-code-gear {
+        border: none; background: rgba(255,255,255,0.08); color: #cfd6ff;
+        width: 26px; height: 26px; border-radius: 7px; font-size: 15px; line-height: 1;
+        cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+        margin-left: 4px; transition: background .15s; flex: none;
+      }
+      .gwp-code-gear:hover { background: rgba(120,150,255,0.35); }
+      /* A block with its own custom look gets a dot on its gear. */
+      .gwp-code-gear.gwp-custom::after {
+        content: ""; position: absolute; margin: -12px 0 0 12px;
+        width: 6px; height: 6px; border-radius: 50%; background: #6aa0ff;
+      }
+    `;
+    (document.head || document.documentElement).appendChild(st);
+  }
+
+  // ── Block-styling <style> — only present while the feature is ON. Removing it
+  //    (toggle off) restores Gemini's native code blocks (solid bg + fonts). ──
   function applyStyle() {
-    let style = document.getElementById("gwp-code-style");
-    if (style) return;   // static content — inject once
-    style = document.createElement("style");
+    if (document.getElementById("gwp-code-style")) return;
+    const style = document.createElement("style");
     style.id = "gwp-code-style";
-    (document.head || document.documentElement).appendChild(style);
     style.textContent = `
       /* Host is just a positioning context — the visible card lives on the
          <pre> (set inline in applyCard), so the border wraps only the code text
@@ -163,6 +186,14 @@
       code-block code {
         background: transparent !important;
       }
+      /* Force code token spans to inherit the block's monospace font. They'd
+         otherwise be grabbed by this extension's own chat-font rule
+         (#gwp-font-style: 'model-response :not(mat-icon)...', specificity
+         (0,1,2) !important). This selector is (0,1,3) so it wins; the spans
+         then inherit the mono font we set inline on <code>. */
+      code-block pre code *:not(.gwp-code-gutter) {
+        font-family: inherit !important;
+      }
       /* Line-number gutter. Font/size/line-height are copied from the code
          element at runtime (inline) so numbers stay aligned. */
       .gwp-code-gutter {
@@ -170,20 +201,39 @@
         user-select: none; pointer-events: none; box-sizing: border-box;
         color: rgba(255,255,255,0.34); border-right: 1px solid rgba(255,255,255,0.12);
       }
-      /* Gear button */
-      .gwp-code-gear {
-        border: none; background: rgba(255,255,255,0.08); color: #cfd6ff;
-        width: 26px; height: 26px; border-radius: 7px; font-size: 15px; line-height: 1;
-        cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
-        margin-left: 4px; transition: background .15s; flex: none;
-      }
-      .gwp-code-gear:hover { background: rgba(120,150,255,0.35); }
-      /* A block with its own custom look gets a dot on its gear. */
-      .gwp-code-gear.gwp-custom::after {
-        content: ""; position: absolute; margin: -12px 0 0 12px;
-        width: 6px; height: 6px; border-radius: 50%; background: #6aa0ff;
-      }
     `;
+    (document.head || document.documentElement).appendChild(style);
+  }
+  function removeStyle() { document.getElementById("gwp-code-style")?.remove(); }
+
+  // Strip every inline style + gutter we added, reverting a block to default.
+  function stripBlock(cb) {
+    const pre = cb.querySelector("pre");
+    if (!pre) return;
+    ["background-color", "border-radius", "border", "box-shadow", "transition",
+     "backdrop-filter", "-webkit-backdrop-filter", "font-family", "font-size",
+     "padding-left", "padding-right", "position"].forEach((p) => pre.style.removeProperty(p));
+    const codeEl = pre.querySelector("code");
+    if (codeEl) { codeEl.style.removeProperty("font-family"); codeEl.style.removeProperty("font-size"); }
+    pre.querySelector(":scope > .gwp-code-gutter")?.remove();
+    try { io.unobserve(pre); } catch (_) {}
+    pre.__gwpSig = null;
+  }
+
+  // Apply the current on/off state to the page (no storage write — caller does that).
+  function applyEnabledState() {
+    if (enabled) {
+      applyStyle();
+      document.querySelectorAll("code-block").forEach((cb) => { addGear(cb); applyBlock(cb); refreshGearDot(cb); });
+    } else {
+      removeStyle();
+      document.querySelectorAll("code-block").forEach((cb) => { addGear(cb); stripBlock(cb); });
+    }
+  }
+  function setEnabled(on) {
+    enabled = on;
+    chrome.storage.local.set({ codeStyleEnabled: on });
+    applyEnabledState();
   }
 
   // Gemini pins the code header (sticky). Pin it to the top of the block so it
@@ -224,10 +274,16 @@
     setBlur(pre);
     pinSticky(cb, pre);
 
-    const fam = st.font ? `'${st.font}', ui-monospace, monospace` : "";
+    // Always set an explicit monospace inline (custom font, else a mono stack).
+    // The chat-font feature (gwp-font-style) forces the user's reading font on
+    // everything inside model-response with !important; setting our font inline
+    // is the only way that reliably wins on <pre>/<code>. (Token spans are
+    // handled by the high-specificity rule in applyStyle.)
+    const fam = st.font
+      ? `'${st.font}', ui-monospace, monospace`
+      : `"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
     [pre, codeEl].forEach((el) => {
-      if (fam) el.style.setProperty("font-family", fam, "important");
-      else el.style.removeProperty("font-family");
+      el.style.setProperty("font-family", fam, "important");
       el.style.setProperty("font-size", st.fontSize + "px", "important");
     });
     pre.style.setProperty("padding-right", "18px", "important");
@@ -360,6 +416,30 @@
     sub.style.cssText = "font-size:10px;color:#8a90b0;margin-bottom:12px;";
     p.appendChild(sub);
 
+    // Master on/off — when off, every code block reverts to Gemini's default look.
+    const master = document.createElement("div");
+    master.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #2a2a4a;";
+    const mLab = document.createElement("span");
+    mLab.textContent = "Code styling"; mLab.style.cssText = "font-size:12px;font-weight:600;color:#fff;";
+    const mBtn = document.createElement("button");
+    mBtn.style.cssText = "padding:5px 16px;font-size:11px;font-weight:700;border-radius:6px;cursor:pointer;border:1px solid transparent;";
+    mBtn.textContent = enabled ? "On" : "Off";
+    mBtn.style.background = enabled ? "rgba(74,124,255,0.18)" : "#2a2a4a";
+    mBtn.style.color = enabled ? "#4a7cff" : "#aaa";
+    mBtn.style.borderColor = enabled ? "#4a7cff" : "transparent";
+    mBtn.addEventListener("click", (e) => { e.stopPropagation(); setEnabled(!enabled); openPanel(panelGear, cb); });
+    master.appendChild(mLab); master.appendChild(mBtn);
+    p.appendChild(master);
+
+    if (!enabled) {
+      const off = document.createElement("div");
+      off.textContent = "Code blocks use Gemini's default look. Turn on to customize.";
+      off.style.cssText = "font-size:11px;color:#8a90b0;line-height:1.5;";
+      p.appendChild(off);
+      document.body.appendChild(p);
+      return p;
+    }
+
     p.appendChild(makeBtnRow("Border", [
       ["none", "None"], ["solid", "Border"], ["shiny", "Shiny"], ["synthwave", "Synthwave"],
     ], cur.border, (v) => editField(cb, "border", v)));
@@ -475,36 +555,52 @@
     btn.type = "button";
     btn.textContent = "⚙";
     btn.title = "Style this code block";
-    btn.style.position = btn.style.position || "relative";  // anchor the custom dot
+    btn.style.position = "relative";  // anchor the custom dot
     btn.addEventListener("click", (e) => {
       e.preventDefault(); e.stopPropagation();
       if (panel && panel.style.display === "block" && panelBlock === cb) closePanel();
       else openPanel(btn, cb);
     });
 
-    const geminiBtn = cb.querySelector("button:not(.gwp-code-gear)");
-    if (geminiBtn && geminiBtn.parentElement) {
-      geminiBtn.parentElement.insertBefore(btn, geminiBtn);
-    } else {
-      btn.style.position = "absolute";
-      btn.style.top = "10px"; btn.style.right = "12px"; btn.style.zIndex = "5";
-      (cb.firstElementChild || cb).appendChild(btn);
+    // Gemini's header (.code-block-decoration — a flex row of [language label,
+    // .buttons]) holds copy/download inside a FIXED-WIDTH .buttons box sized
+    // for exactly two icons. Inserting our gear into that box overflows it and
+    // wraps the icons onto a second line (the overlap bug). Instead we sit the
+    // gear in the header itself, pushed right (margin-left:auto) so it hugs the
+    // button group without disturbing it.
+    const dec = cb.querySelector(".code-block-decoration, .header-formatted");
+    if (dec) {
+      btn.style.marginLeft = "auto";
+      btn.style.marginRight = "6px";
+      const buttons = dec.querySelector(".buttons");
+      if (buttons) dec.insertBefore(btn, buttons);
+      else dec.appendChild(btn);
+      refreshGearDot(cb);
     }
-    refreshGearDot(cb);
+    // No header yet → skip; the next scan (every 300ms) retries once it exists.
   }
 
   function scan() {
     document.querySelectorAll("code-block").forEach((cb) => {
-      addGear(cb);
-      applyBlock(cb);
+      addGear(cb);                       // gear always present (lets you re-enable)
+      if (enabled) applyBlock(cb);
+      else stripBlock(cb);
     });
   }
 
   // ── Live updates from other tabs / the popup ──────────────────
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local" || (!changes.codeStyle && !changes.codeStyleBlocks)) return;
+    if (area !== "local") return;
+    // Master on/off flipped elsewhere (another tab): apply it here too.
+    if (changes.codeStyleEnabled) {
+      enabled = changes.codeStyleEnabled.newValue !== false;
+      applyEnabledState();
+      return;
+    }
+    if (!changes.codeStyle && !changes.codeStyleBlocks) return;
     if (changes.codeStyle) s = { ...DEFAULTS, ...changes.codeStyle.newValue };
     if (changes.codeStyleBlocks) blocks = changes.codeStyleBlocks.newValue || {};
+    if (!enabled) return;   // nothing to restyle while off
     loadFonts();
     // sig guard means unchanged blocks are skipped; only truly-changed ones re-render.
     document.querySelectorAll("code-block").forEach((cb) => { applyBlock(cb); refreshGearDot(cb); });
@@ -519,10 +615,12 @@
     timer = setTimeout(() => { timer = null; scan(); }, 300);
   });
 
-  chrome.storage.local.get({ codeStyle: DEFAULTS, codeStyleBlocks: {} }, (stored) => {
+  chrome.storage.local.get({ codeStyle: DEFAULTS, codeStyleBlocks: {}, codeStyleEnabled: true }, (stored) => {
     s = { ...DEFAULTS, ...stored.codeStyle };
     blocks = stored.codeStyleBlocks || {};
-    applyStyle();
+    enabled = stored.codeStyleEnabled !== false;
+    applyGearStyle();          // gear CSS is always present
+    if (enabled) applyStyle();
     loadFonts();
     scan();
     observer.observe(document.body, { childList: true, subtree: true });

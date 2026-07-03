@@ -192,8 +192,10 @@
     const stack = [latin, cjk].filter(Boolean).map(f => `'${f}'`).join(", ");
     const fallback = cjk ? "serif" : "sans-serif";
 
-    // Exclude mat-icon (Google Symbols icon font) — overriding it turns icons into raw text
-    const notIcon = ":not(mat-icon):not([class*='mat-ligature'])";
+    // Exclude mat-icon (Google Symbols icon font) — overriding it turns icons into raw text.
+    // Also exclude code blocks: the reading font must never touch code, or it
+    // overrides the monospace on syntax-highlighted token spans (code-style.js).
+    const notIcon = ":not(mat-icon):not([class*='mat-ligature']):not(code-block):not(code-block *)";
     const style = document.createElement("style");
     style.id = "gwp-font-style";
     style.textContent = `
