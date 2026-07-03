@@ -234,5 +234,9 @@ Each content script is a self-contained IIFE. They never call each other — the
 
 <div align="center">
 <br>
+
+**_They say a beautiful gem remains hidden forever if you settle for ordinary tools._**
+
+<br>
 <sub>Not affiliated with Google. "Gemini" is a trademark of Google LLC.</sub>
 </div>

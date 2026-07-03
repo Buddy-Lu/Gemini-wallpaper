@@ -234,5 +234,9 @@ Gemini-wallpaper/
 
 <div align="center">
 <br>
+
+**_They say a beautiful gem remains hidden forever if you settle for ordinary tools._**
+
+<br>
 <sub>與 Google 無任何隸屬關係。「Gemini」為 Google LLC 的商標。</sub>
 </div>
