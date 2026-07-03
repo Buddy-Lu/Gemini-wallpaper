@@ -4,7 +4,7 @@
 
 # 🌌 Gemini Wallpaper
 
-### _They say a beautiful gem remains hidden forever if you settle for ordinary tools._ ✨
+### _They say beautiful gemini remain hidden if you settle for ordinary tools._ ✨
 
 自訂桌布 · 毛玻璃介面 · 螢光標註與便利貼 · 數學修復 · 程式碼主題 · 桌面寵物<br>
 **專為 Gemini 網頁版打造的個人強化包 —— 免帳號、免雲端、100% 本機。**

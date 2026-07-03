@@ -4,7 +4,7 @@
 
 # 🌌 Gemini Wallpaper
 
-### _They say a beautiful gem remains hidden forever if you settle for ordinary tools._ ✨
+### _They say beautiful gemini remain hidden if you settle for ordinary tools._ ✨
 
 Custom wallpaper · frosted-glass UI · highlights & linked notes · math fix · code themes · desktop pets<br>
 **A personal power-up for the Gemini web app — no account, no cloud, 100% local.**
