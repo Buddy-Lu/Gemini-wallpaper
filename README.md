@@ -4,7 +4,7 @@
 
 # 🌌 Gemini Wallpaper
 
-### Make Google Gemini™ truly yours ✨
+### _They say a beautiful gem remains hidden forever if you settle for ordinary tools._ ✨
 
 Custom wallpaper · frosted-glass UI · highlights & linked notes · math fix · code themes · desktop pets<br>
 **A personal power-up for the Gemini web app — no account, no cloud, 100% local.**
@@ -233,10 +233,6 @@ Each content script is a self-contained IIFE. They never call each other — the
 **MIT** — do whatever you want with it. KaTeX is bundled under its own MIT license, and pet sprites come from the [vscode-pets](https://github.com/tonybaloney/vscode-pets) project.
 
 <div align="center">
-<br>
-
-**_They say a beautiful gem remains hidden forever if you settle for ordinary tools._**
-
 <br>
 <sub>Not affiliated with Google. "Gemini" is a trademark of Google LLC.</sub>
 </div>

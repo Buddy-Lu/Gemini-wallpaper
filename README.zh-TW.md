@@ -4,7 +4,7 @@
 
 # 🌌 Gemini Wallpaper
 
-### 讓 Google Gemini™ 真正屬於你 ✨
+### _They say a beautiful gem remains hidden forever if you settle for ordinary tools._ ✨
 
 自訂桌布 · 毛玻璃介面 · 螢光標註與便利貼 · 數學修復 · 程式碼主題 · 桌面寵物<br>
 **專為 Gemini 網頁版打造的個人強化包 —— 免帳號、免雲端、100% 本機。**
@@ -233,10 +233,6 @@ Gemini-wallpaper/
 **MIT** —— 你想怎麼用都行。KaTeX 以其自身的 MIT 授權內建，寵物圖素則來自 [vscode-pets](https://github.com/tonybaloney/vscode-pets) 專案。
 
 <div align="center">
-<br>
-
-**_They say a beautiful gem remains hidden forever if you settle for ordinary tools._**
-
 <br>
 <sub>與 Google 無任何隸屬關係。「Gemini」為 Google LLC 的商標。</sub>
 </div>
