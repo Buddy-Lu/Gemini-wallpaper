@@ -15,7 +15,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["vendor/katex/fonts/*", "assets/icons/assistant/*"],
+      "resources": ["vendor/katex/fonts/*", "assets/icons/assistant/*", "assets/fonts/*"],
       "matches": ["https://gemini.google.com/*"]
     }
   ],
