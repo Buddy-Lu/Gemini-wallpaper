@@ -397,10 +397,12 @@
         position: fixed; z-index: 9999; width: 88px; height: 58px; border-radius: 13px;
         background: rgba(20,22,34,.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
         border: 1px solid rgba(255,255,255,.12); box-shadow: 0 5px 18px rgba(0,0,0,.5);
-        cursor: grab; display: none; color: #dfe3f4; font: 700 12px/1 'Segoe UI', system-ui, sans-serif;
+        cursor: grab; display: none; color: #eef1ff; font: 700 14px/1 'Segoe UI', system-ui, sans-serif;
       }
       #gwp-chatbox-chip .gwp-chip-label {
-        position: absolute; left: 0; right: 0; bottom: 9px; text-align: center; letter-spacing: 1.5px; opacity: .92;
+        position: absolute; left: 0; right: 0; bottom: 0; height: 24px;
+        display: flex; align-items: center; justify-content: center;
+        text-align: center; letter-spacing: 2px; opacity: 1;
       }
     `;
     (document.head || document.documentElement).appendChild(st);

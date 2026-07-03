@@ -108,6 +108,9 @@
     s_confirm: { en: "Tap again to confirm", zh: "再點一次以確認", ja: "もう一度タップで確定", ko: "한 번 더 눌러 확인", fr: "Retapez pour confirmer", de: "Zum Bestätigen erneut tippen", es: "Toca otra vez para confirmar", ru: "Нажмите ещё раз для подтверждения" },
     s_lang:    { en: "Language", zh: "語言", ja: "言語", ko: "언어", fr: "Langue", de: "Sprache", es: "Idioma", ru: "Язык" },
     s_cycle:   { en: "Tap to cycle", zh: "點擊切換", ja: "タップで切替", ko: "탭하여 전환", fr: "Toucher pour changer", de: "Tippen zum Wechseln", es: "Toca para cambiar", ru: "Нажмите для смены" },
+    cs_styling: { en: "Code styling", zh: "程式碼樣式", ja: "コード表示", ko: "코드 스타일", fr: "Style du code", de: "Code-Stil", es: "Estilo de código", ru: "Стиль кода" },
+    cs_default: { en: "Default code look", zh: "預設程式碼外觀", ja: "コードの既定スタイル", ko: "코드 기본 스타일", fr: "Style de code par défaut", de: "Standard-Code-Stil", es: "Estilo de código pred.", ru: "Стиль кода по умолч." },
+    cs_note:    { en: "Applies to every code block you haven't styled individually.", zh: "套用到所有你沒有個別設定的程式碼區塊。", ja: "個別に設定していないすべてのコードブロックに適用されます。", ko: "개별적으로 설정하지 않은 모든 코드 블록에 적용됩니다.", fr: "S'applique à tous les blocs de code que vous n'avez pas personnalisés.", de: "Gilt für alle Codeblöcke, die du nicht einzeln angepasst hast.", es: "Se aplica a todos los bloques de código que no hayas personalizado.", ru: "Применяется ко всем блокам кода, которые вы не настроили отдельно." },
 
     // About panel
     ab_p1:       { en: "Gemini is powerful, but the interface is always the same — a monotonous background, fixed layout, missing a bit of your exclusive style.", zh: "Gemini 很強大，但介面卻千篇一律——單調的背景、固定的排版，少了點你的專屬風格。", ja: "Geminiは強力ですが、インターフェースは千篇一律です——単調な背景、固定のレイアウトで、あなただけのスタイルが少し足りません。", ko: "Gemini는 강력하지만 인터페이스는 천편일률적입니다——단조로운 배경, 고정된 레이아웃으로 당신만의 스타일이 조금 부족합니다.", fr: "Gemini est puissant, mais l'interface est toujours la même : un fond monotone, une mise en page fixe, il lui manque un peu de votre style exclusif.", de: "Gemini ist leistungsstark, aber die Benutzeroberfläche ist immer gleich — ein eintöniger Hintergrund, ein festes Layout, es fehlt ein wenig dein persönlicher Stil.", es: "Gemini es potente, pero la interfaz es siempre la misma: un fondo monótono, un diseño fijo, le falta un poco de tu estilo exclusivo.", ru: "Gemini мощный, но интерфейс однообразен — монотонный фон, фиксированный макет, не хватает немного вашего уникального стиля." },
@@ -338,8 +341,11 @@
       #gwp-as-menu .gwp-as-note { font-size:11px; opacity:.7; line-height:1.5; margin: 6px 6px 2px; }
       #gwp-as-menu .gwp-as-switch { display:flex; align-items:center; justify-content:space-between; margin: 8px 4px; }
       #gwp-as-menu .gwp-as-switch .lab { font-size:12px; font-weight:600; }
-      #gwp-as-menu .gwp-as-pill { border:none; border-radius:20px; padding:6px 16px; font-size:11px; font-weight:700; cursor:pointer; color:#fff; }
-      #gwp-as-menu .gwp-as-pill.on { background:#28c840; } #gwp-as-menu .gwp-as-pill.off { background: rgba(255,255,255,.16); }
+      /* iOS-style sliding toggle — stays a <button> toggling .on, so the JS is untouched. */
+      #gwp-as-menu .gwp-as-pill { box-sizing:border-box; position:relative; flex:none; width:50px; height:30px; padding:0; border:1px solid rgba(255,255,255,.18); border-radius:60px; background:rgba(255,255,255,.16); font-size:0; cursor:pointer; transition:background .35s cubic-bezier(.54,1.6,.5,1); }
+      #gwp-as-menu .gwp-as-pill::after { content:""; position:absolute; top:1px; left:1px; width:26px; height:26px; border-radius:60px; background:#f5f5f7; box-shadow:0 0 0 1px hsla(0,0%,0%,.1), 0 4px 0 0 hsla(0,0%,0%,.04), 0 4px 9px hsla(0,0%,0%,.13), 0 3px 3px hsla(0,0%,0%,.05); transition:.35s cubic-bezier(.54,1.6,.5,1); }
+      #gwp-as-menu .gwp-as-pill.on { background:#2ecc71; } #gwp-as-menu .gwp-as-pill.on::after { left:21px; }
+      #gwp-as-menu .gwp-as-pill.off { background: rgba(255,255,255,.16); }
       #gwp-as-menu .gwp-as-hero { display:flex; flex-direction:column; align-items:center; gap:8px; padding: 6px 4px 2px; text-align:center; }
       #gwp-as-menu .gwp-as-hero .big { font-size: 40px; width:56px; height:56px; border-radius:15px; background:#f1f3fa; display:flex; align-items:center; justify-content:center; }
       #gwp-as-menu .gwp-as-hero .big img { width:36px; height:36px; object-fit:contain; }
@@ -627,13 +633,13 @@
     positionMenu();
   }
 
-  function header(title, withBack) {
+  function header(title, withBack, backTo) {
     const h = document.createElement("div");
     h.className = "gwp-as-head";
     if (withBack) {
       const back = document.createElement("button");
       back.className = "gwp-as-back"; back.textContent = "‹";
-      back.addEventListener("click", (e) => { e.stopPropagation(); view = "home"; renderMenu(); });
+      back.addEventListener("click", (e) => { e.stopPropagation(); view = backTo || "home"; renderMenu(); });
       h.appendChild(back);
     }
     const t = document.createElement("div");
@@ -1088,6 +1094,82 @@
     menu.appendChild(bento);
   }
 
+  // ── Default code-block look (writes `codeStyle`) ──────────────
+  // Rendered inside the Code Theme feature card so users set their default
+  // preference right where the feature is described.
+  // Control labels stay English to match the per-block code panel (code-style.js).
+  function renderCodeControls() {
+    const cs = state.codeStyle = { ...CODE_DEFAULTS, ...state.codeStyle };
+    const save = () => chrome.storage.local.set({ codeStyle: state.codeStyle });
+
+    // On/Off at the top too, for convenience.
+    const sw = document.createElement("div"); sw.className = "gwp-as-switch";
+    const swLab = document.createElement("span"); swLab.className = "lab"; swLab.textContent = t("cs_styling");
+    const swPill = document.createElement("button");
+    const paint = () => { const on = !!state.codeStyleEnabled; swPill.textContent = on ? "On" : "Off"; swPill.className = "gwp-as-pill " + (on ? "on" : "off"); };
+    paint();
+    swPill.addEventListener("click", (e) => { e.stopPropagation(); state.codeStyleEnabled = !state.codeStyleEnabled; chrome.storage.local.set({ codeStyleEnabled: state.codeStyleEnabled }); paint(); });
+    sw.append(swLab, swPill); menu.appendChild(sw);
+
+    menu.appendChild(codeSeg("Border", "border", [["none", "None"], ["solid", "Border"], ["shiny", "Shiny"], ["synthwave", "Synthwave"]], save));
+    menu.appendChild(codeSeg("Font", "font", [["", "Default"], ["JetBrains Mono", "JetBrains"], ["Fira Code", "Fira"], ["Source Code Pro", "Source"], ["IBM Plex Mono", "IBM"]], save));
+    menu.appendChild(codeSlider("Font size", "fontSize", 10, 22, 1, "px", save));
+
+    const ln = document.createElement("div"); ln.className = "gwp-as-switch";
+    const lnLab = document.createElement("span"); lnLab.className = "lab"; lnLab.textContent = "Line numbers";
+    const lnPill = document.createElement("button");
+    const paintLn = () => { lnPill.textContent = cs.lineNumbers ? "On" : "Off"; lnPill.className = "gwp-as-pill " + (cs.lineNumbers ? "on" : "off"); };
+    paintLn();
+    lnPill.addEventListener("click", (e) => { e.stopPropagation(); cs.lineNumbers = !cs.lineNumbers; save(); paintLn(); });
+    ln.append(lnLab, lnPill); menu.appendChild(ln);
+
+    const tint = document.createElement("div"); tint.className = "gwp-as-tint";
+    const tLab = document.createElement("span"); tLab.textContent = "Tint"; tLab.style.flex = "1";
+    const tColor = document.createElement("input"); tColor.type = "color"; tColor.value = cs.tintColor || "#0f1020";
+    tColor.addEventListener("input", (e) => { e.stopPropagation(); cs.tintColor = tColor.value; save(); });
+    tint.append(tLab, tColor); menu.appendChild(tint);
+
+    menu.appendChild(codeSlider("Opacity", "tintOpacity", 0, 100, 1, "%", save));
+    menu.appendChild(codeSlider("Blur", "blur", 0, 24, 1, "px", save));
+    menu.appendChild(codeSlider("Radius", "radius", 0, 28, 1, "px", save));
+
+    const note = document.createElement("div");
+    note.className = "gwp-as-note"; note.textContent = t("cs_note");
+    menu.appendChild(note);
+  }
+  // Slider bound to a field of state.codeStyle (not a flat state key).
+  function codeSlider(label, field, min, max, step, unit, save) {
+    const cs = state.codeStyle;
+    const row = document.createElement("div"); row.className = "gwp-as-row";
+    const lab = document.createElement("label"); lab.textContent = label;
+    const range = document.createElement("input");
+    range.type = "range"; range.min = min; range.max = max; range.step = step; range.value = cs[field];
+    const val = document.createElement("span"); val.className = "gwp-as-val"; val.textContent = cs[field] + unit;
+    range.addEventListener("input", (e) => {
+      e.stopPropagation();
+      const v = parseInt(range.value, 10);
+      val.textContent = v + unit; cs[field] = v; save();
+    });
+    row.append(lab, range, val); return row;
+  }
+  // Wrapping chip picker bound to a field of state.codeStyle.
+  function codeSeg(label, field, options, save) {
+    const cs = state.codeStyle;
+    const wrap = document.createElement("div"); wrap.className = "gwp-as-fld";
+    const lab = document.createElement("span"); lab.className = "lab"; lab.textContent = label; wrap.appendChild(lab);
+    const chips = document.createElement("div"); chips.className = "gwp-as-chips";
+    options.forEach(([val, text]) => {
+      const b = document.createElement("button");
+      b.className = "gwp-as-chip" + (cs[field] === val ? " on" : ""); b.textContent = text;
+      b.addEventListener("click", (e) => {
+        e.stopPropagation(); cs[field] = val; save();
+        chips.querySelectorAll("button").forEach((z) => z.classList.remove("on")); b.classList.add("on");
+      });
+      chips.appendChild(b);
+    });
+    wrap.appendChild(chips); return wrap;
+  }
+
   // ── About + generic info ──────────────────────────────────
   function renderAbout() {
     menu.appendChild(header(t("about"), true));
@@ -1164,6 +1246,9 @@
     const note = document.createElement("div");
     note.className = "gwp-as-note"; note.textContent = it ? itIntro(it) : "";
     menu.appendChild(note);
+
+    // The Code Theme card sets the default code-block look right here.
+    if (it && it.id === "code") renderCodeControls();
   }
 
   // ── Storage sync ──────────────────────────────────────────
@@ -1182,7 +1267,12 @@
     return LANGS.some(([v]) => v === two) ? two : "en";
   })();
 
-  const DEFAULTS = { lang: DEFAULT_LANG, petType: "duck", glassColor: "#000000", chatFont: "", cjkFont: "", imageData: "", imageQuality: "medium", chatboxScale: 100, [KEY_POS]: null, [KEY_ON]: false };
+  // Default code-block look — mirrors code-style.js DEFAULTS. The Settings panel
+  // writes these to `codeStyle` (the default applied to un-customized blocks) and
+  // `codeStyleEnabled`; code-style.js watches both keys and re-renders live.
+  const CODE_DEFAULTS = { tintColor: "#0f1020", tintOpacity: 55, blur: 12, border: "solid", radius: 12, font: "", fontSize: 14, lineNumbers: false };
+
+  const DEFAULTS = { lang: DEFAULT_LANG, petType: "duck", glassColor: "#000000", chatFont: "", cjkFont: "", imageData: "", imageQuality: "medium", chatboxScale: 100, codeStyle: CODE_DEFAULTS, codeStyleEnabled: true, [KEY_POS]: null, [KEY_ON]: false };
   ON_KEYS.forEach((k) => (DEFAULTS[k] = k === "enabled" || k === "thinkingBuddy" || k === "hideChatEnabled"));
   SLIDERS.forEach((sl) => (DEFAULTS[sl.key] = sl.toStore ? sl.toStore(sl.def) : sl.def));
 
