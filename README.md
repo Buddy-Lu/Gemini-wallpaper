@@ -224,7 +224,7 @@ Each content script is a self-contained IIFE. They never call each other — the
 - **Chatbox doesn't fill the whole page in full-screen.** In maximize mode the windowed chatbox can't yet stretch to the full width of the page's text.
 - **Other widgets may interfere.** Extensions that also look for the chat input can conflict — e.g. a *FastFolder*-style UI trying to locate the chatbox may make its own panel shift to follow it.
 - **Performance dips over long sessions.** With so many visual effects running, resource usage builds up and can cause stutter after roughly **30–40 minutes** of continuous use. Not solved yet — on the list to improve.
-- **Mostly vibe-coded.** Much of the code was written fast and by feel, and hasn't had a thorough review yet — expect rough edges, and PRs are welcome.
+- **Mostly vibe-coded.** A lot of this was built by vibe coding with an AI assistant (Claude Code) rather than hand-written and reviewed line by line — expect rough edges, and PRs are welcome.
 
 ---
 
