@@ -215,6 +215,14 @@ Each content script is a self-contained IIFE. They never call each other — the
 - **"Extension context invalidated" in the console?** You reloaded the unpacked extension while a Gemini tab was open — just refresh the tab. `guard.js` keeps it from breaking in the meantime.
 - **Math didn't render?** Only equations Gemini printed as raw LaTeX get a **Fix** button; already-rendered math is left as-is.
 
+### ⚠️ Known limitations
+
+- **Assistant orb sometimes goes unclickable.** Occasionally the floating orb stops responding to clicks — just **refresh the page** and it comes back.
+- **Slight element shifts.** Because features manipulate Gemini's DOM, some elements can nudge a few pixels out of place, which may affect the aesthetics.
+- **Chatbox doesn't fill the whole page in full-screen.** In maximize mode the windowed chatbox can't yet stretch to the full width of the page's text.
+- **Other widgets may interfere.** Extensions that also look for the chat input can conflict — e.g. a *FastFolder*-style UI trying to locate the chatbox may make its own panel shift to follow it.
+- **Mostly vibe-coded.** Much of the code was written fast and by feel, and hasn't had a thorough review yet — expect rough edges, and PRs are welcome.
+
 ---
 
 ## 📄 License
