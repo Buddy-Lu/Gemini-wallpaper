@@ -59,14 +59,14 @@ let currentImageData = "";
 chrome.storage.local.get(
   {
     enabled: true,
-    petEnabled: false,
+    petEnabled: true,
     petType: "duck",
-    chatboxDraggable: false,
+    chatboxDraggable: true,
     magicBall: false,
     chatboxScale: 100,
-    notesEnabled: false,
+    notesEnabled: true,
     thinkingBuddy: true,
-    bulkDeleteEnabled: false,
+    bulkDeleteEnabled: true,
     imageQuality: "medium",
     imageData: "",
     overlayOpacity: 0.5,
